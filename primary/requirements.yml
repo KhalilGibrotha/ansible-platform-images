@@ -1,7 +1,13 @@
 ---
 # General-purpose collections most teams reach for. Representative starting set -
 # trim or extend to match what your automation actually imports.
+#
+# System roles: the committed name is the community build on public Galaxy
+# (fedora.linux_system_roles), so the lab builds with no entitlement. In SECU,
+# swap to the certified build from Automation Hub - redhat.rhel_system_roles -
+# which is Hub-only (absent from public Galaxy). Same certified-vs-community
+# split as redhat.openshift; see README "Collection sourcing".
 collections:
   - name: community.general
   - name: ansible.windows
-  - name: redhat.rhel_system_roles
+  - name: fedora.linux_system_roles
