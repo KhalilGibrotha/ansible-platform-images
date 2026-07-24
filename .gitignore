@@ -1,0 +1,3 @@
+# ansible-builder writes the generated Containerfile + build context here.
+# It is a derived artifact - regenerated on every build, never committed.
+*/context/

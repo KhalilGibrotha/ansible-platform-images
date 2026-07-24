@@ -1,0 +1,39 @@
+---
+# Network collections for the network team.
+#
+# Two tiers of Red Hat content are represented here, and it matters where each
+# comes from (the contract-vs-source rule this repo follows throughout):
+#
+#   * Certified (rh-certified on Automation Hub; also on public Galaxy) - the
+#     vendor platform collections below. These resolve in BOTH the lab (public
+#     Galaxy) and SECU (Automation Hub certified) under the same FQCN.
+#
+#   * Validated (Ansible validated content; Automation-Hub-sourced in SECU) -
+#     the network.* abstraction collections at the bottom. These are the
+#     opinionated, Red-Hat-validated resource-module layer. Confirm each is
+#     synced to your Automation Hub before pinning a tight version, and be aware
+#     some validated content is Hub-only - the same trap redhat.openshift set,
+#     so the lab may need it from public Galaxy or may not carry it at all.
+#
+# This is a representative set - trim to the platforms the team actually runs.
+collections:
+  # Foundation
+  - name: ansible.netcommon
+
+  # Cisco
+  - name: cisco.ios
+  - name: cisco.nxos
+  - name: cisco.iosxr
+
+  # Other common data-centre / campus platforms
+  - name: arista.eos
+  - name: junipernetworks.junos
+
+  # F5 BIG-IP
+  - name: f5networks.f5_modules
+
+  # Red Hat validated content - the network.* resource-module abstraction.
+  # Uncomment the ones the team adopts; source from Automation Hub in SECU.
+  # - name: network.base
+  # - name: network.bgp
+  # - name: network.interfaces

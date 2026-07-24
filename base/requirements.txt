@@ -1,0 +1,3 @@
+# Universal Python dependencies (base layer).
+# netaddr backs the ansible.utils ipaddr/ipmath filters used across teams.
+netaddr

@@ -1,0 +1,6 @@
+---
+# Universal collections - only what EVERY team needs. Resist adding here; a
+# collection one team uses belongs in that team's EE, not the shared base.
+collections:
+  - name: ansible.posix
+  - name: ansible.utils

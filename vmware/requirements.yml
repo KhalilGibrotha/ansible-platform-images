@@ -1,0 +1,7 @@
+---
+# VMware collections. community.vmware is the SOAP/pyVmomi-based collection;
+# vmware.vmware_rest is the vCenter REST API collection. Include what your
+# playbooks use - many shops standardise on one.
+collections:
+  - name: community.vmware
+  - name: vmware.vmware_rest

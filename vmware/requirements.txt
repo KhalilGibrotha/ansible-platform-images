@@ -1,0 +1,3 @@
+# VMware Python dependencies.
+pyVmomi           # required by community.vmware (SOAP SDK; includes pyVim)
+aiohttp           # required by vmware.vmware_rest (async REST client)

@@ -1,0 +1,96 @@
+---
+# Build the platform image fleet.
+#
+# EEs: ee-base is built first, then the derived EEs (primary, vmware, network)
+# FROM that base by digest - "build once, promote by digest". They build
+# sequentially in one job so the freshly built base is available locally to the
+# derived builds without needing to publish it first (important for PR builds,
+# which never push). The Dev Spaces authoring image builds on its own parallel
+# job because it has a different lineage.
+#
+# Nothing is pushed on pull_request - a PR proves the images BUILD; publishing
+# happens only on push to main.
+name: build-ee
+
+"on":
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+env:
+  REGISTRY: ghcr.io
+  OWNER: khalilgibrotha        # GHCR namespace (must be lowercase)
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  build-ees:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install ansible-builder
+        run: pip install ansible-builder
+
+      - name: Log in to GHCR
+        if: github.event_name != 'pull_request'
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login "$REGISTRY" -u "${{ github.actor }}" --password-stdin
+
+      - name: Build ee-base
+        run: |
+          ansible-builder build \
+            --file base/execution-environment.yml \
+            --context base/context \
+            --container-runtime docker \
+            --tag "$REGISTRY/$OWNER/ee-base:${{ github.sha }}" \
+            --verbosity 2
+
+      - name: Build derived EEs FROM the local base
+        run: |
+          for ee in primary vmware network; do
+            echo "::group::build ee-$ee"
+            ansible-builder build \
+              --file "$ee/execution-environment.yml" \
+              --context "$ee/context" \
+              --container-runtime docker \
+              --build-arg EE_BASE_IMAGE="$REGISTRY/$OWNER/ee-base:${{ github.sha }}" \
+              --tag "$REGISTRY/$OWNER/ee-$ee:${{ github.sha }}" \
+              --verbosity 2
+            echo "::endgroup::"
+          done
+
+      - name: Push all EE images
+        if: github.event_name != 'pull_request'
+        run: |
+          for img in ee-base ee-primary ee-vmware ee-network; do
+            docker push "$REGISTRY/$OWNER/$img:${{ github.sha }}"
+          done
+
+  # Independent track: the Dev Spaces authoring image. It derives from Red Hat's
+  # devspaces image (not ee-base) and is a plain Containerfile build.
+  build-devspaces:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Log in to GHCR
+        if: github.event_name != 'pull_request'
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login "$REGISTRY" -u "${{ github.actor }}" --password-stdin
+
+      - name: Build the Dev Spaces tooling image
+        run: |
+          docker build \
+            --file devspaces/Containerfile \
+            --tag "$REGISTRY/$OWNER/ansible-devspaces:${{ github.sha }}" \
+            devspaces/
+
+      - name: Push the Dev Spaces tooling image
+        if: github.event_name != 'pull_request'
+        run: docker push "$REGISTRY/$OWNER/ansible-devspaces:${{ github.sha }}"

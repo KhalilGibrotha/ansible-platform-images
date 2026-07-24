@@ -1,0 +1,21 @@
+---
+# ee-primary - the general-purpose EE used for most automation.
+#
+# Derives from ee-base: it inherits the OS, ansible-core/runner, CA certs, proxy,
+# and universal collections, and adds only the broadly-used automation content.
+# It does NOT re-declare ansible_core/ansible_runner - those come from the base.
+version: 3
+
+images:
+  base_image:
+    # The published ee-base image. CI overrides this at build time with the
+    # freshly built base pinned by digest, via --build-arg EE_BASE_IMAGE=<digest>,
+    # so a base rebuild always flows into this EE. This default lets a local
+    # `ansible-builder build` work once ee-base exists.
+    name: ghcr.io/khalilgibrotha/ee-base:latest
+
+dependencies:
+  galaxy: requirements.yml
+  python: requirements.txt
+
+# package_manager_path is inherited from how ee-base was built (dnf on UBI9).

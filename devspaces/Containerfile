@@ -1,0 +1,42 @@
+# Custom OpenShift Dev Spaces tooling image (the AUTHORING image).
+#
+# This is the image the `ansible-dev-workspace` devfile consumes - the inner-loop
+# environment with ansible-core, ansible-lint, ansible-navigator, molecule,
+# ansible-builder, ansible-creator, and the oc/kubectl CLIs. It is DISTINCT from
+# the EEs in this repo: those are the runtime images automation executes in;
+# this is where humans author and lint.
+#
+# It is built by deriving from Red Hat's supported Dev Spaces image and layering
+# org concerns on top (never rebuilt from scratch) - the same derive-and-layer
+# pattern the EEs use with ee-base.
+#
+#   Lab default:  the upstream community image (freely pullable, no entitlement).
+#   SECU:         override DEVSPACES_BASE with the mirrored supported image, e.g.
+#                 registry.redhat.io/ansible-automation-platform-27/ansible-devspaces-rhel9:<tag>
+#                 (needs a registry.redhat.io pull secret / AAP entitlement).
+ARG DEVSPACES_BASE=ghcr.io/ansible/ansible-devspaces:v26.7.1@sha256:d4477c8ff39c19216e184e09c3aa44f32b427a7992a0bf52fd19df597d4adb10
+FROM ${DEVSPACES_BASE}
+
+# Dev Spaces runs the workspace as an OpenShift-assigned arbitrary UID under the
+# restricted SCC. Build-time customisation runs as root (UID 0); the platform
+# re-drops to a random UID (in group 0) at runtime, so keep added paths
+# group-writable where the workspace must write.
+USER 0
+
+# --- Organisation customisations (placeholders - fill in for SECU) -----------
+# Internal root CA, so galaxy/pip/registry pulls are trusted behind the proxy:
+# COPY certs/org-root-ca.crt /etc/pki/ca-trust/source/anchors/
+# RUN update-ca-trust
+#
+# Extra OS tooling not in the base image:
+# RUN dnf -y install <pkg> && dnf clean all
+#
+# Collections pre-installed in every workspace (keep in step with the content
+# repo's collections/requirements.yml):
+# COPY requirements.yml /tmp/requirements.yml
+# RUN ansible-galaxy collection install -r /tmp/requirements.yml
+# -----------------------------------------------------------------------------
+
+# Convention: return to an unprivileged UID. OpenShift overrides the actual UID
+# at runtime; this just avoids leaving root as the default.
+USER 1001

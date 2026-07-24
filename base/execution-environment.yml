@@ -1,0 +1,47 @@
+---
+# ee-base - the organisation foundation every other EE derives from.
+#
+# This is the ONLY place org-wide concerns live: the base OS, the ansible-core
+# and ansible-runner versions, universal collections, and (in SECU) the CA
+# certificates, proxy, and hardening. Patch a CVE or add a root CA here once and
+# every derived EE inherits it on its next rebuild. Keep it THIN - only what
+# genuinely every team needs. Team-specific content belongs in primary/, vmware/,
+# or network/, never here.
+#
+# https://ansible.readthedocs.io/projects/builder/en/latest/definition/
+version: 3
+
+images:
+  base_image:
+    # Lab default: freely-pullable UBI9 (no Red Hat entitlement needed).
+    # ansible-builder requires an RPM/dnf-based image.
+    #
+    # SECU supported swap: point this at the mirrored Red Hat EE base and add the
+    # options.package_manager_path below, because ee-minimal uses microdnf:
+    #   name: registry.redhat.io/ansible-automation-platform-25/ee-minimal-rhel9:latest
+    # (needs a registry.redhat.io pull secret / AAP entitlement - mirror it into
+    #  the internal registry, same pattern as the Dev Spaces tooling image.)
+    name: registry.access.redhat.com/ubi9/ubi:latest
+
+dependencies:
+  # Pin ansible-core to the version you support in production. Bumping this line
+  # (and rebuilding) is how you test a new Ansible version - see README.
+  ansible_core:
+    package_pip: ansible-core
+  ansible_runner:
+    package_pip: ansible-runner
+  galaxy: requirements.yml
+  python: requirements.txt
+  system: bindep.txt
+
+options:
+  # UBI9 (full) uses dnf. If you swap base_image to an ee-minimal image, change
+  # this to /usr/bin/microdnf.
+  package_manager_path: /usr/bin/dnf
+
+# WHERE collections are fetched is environment configuration, not baked here:
+#   - Lab: ansible-builder resolves from public Ansible Galaxy by default.
+#   - SECU: the CI stages an ansible.cfg (with the internal Automation Hub server
+#     and a token from a CI secret) into the build context and copies it in via
+#     additional_build_steps.prepend_galaxy, so certified/validated builds are
+#     used. The token is never committed. See README ("Collection sourcing").

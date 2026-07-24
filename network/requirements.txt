@@ -1,0 +1,7 @@
+# Network Python dependencies (connection + parsing libraries).
+netmiko           # SSH CLI automation (cisco.ios/nxos, arista.eos, ...)
+ncclient          # NETCONF transport (junipernetworks.junos, cisco.iosxr)
+paramiko          # SSH transport used by network_cli
+jxmlease          # Juniper XML parsing
+textfsm           # structured parsing of show-command output (ansible.netcommon cli_parse)
+packaging         # required by f5networks.f5_modules

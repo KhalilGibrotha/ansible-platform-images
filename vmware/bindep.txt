@@ -1,0 +1,4 @@
+# System packages for building the VMware Python deps (lxml/ssl headers).
+gcc [platform:rpm]
+libxml2-devel [platform:rpm]
+openssl-devel [platform:rpm]

@@ -1,0 +1,4 @@
+# Universal system packages (bindep format: <pkg> [platform:rpm]).
+# git is needed for git-based collection installs; ssh client for connections.
+git [platform:rpm]
+openssh-clients [platform:rpm]

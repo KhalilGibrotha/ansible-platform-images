@@ -1,0 +1,7 @@
+---
+# General-purpose collections most teams reach for. Representative starting set -
+# trim or extend to match what your automation actually imports.
+collections:
+  - name: community.general
+  - name: ansible.windows
+  - name: redhat.rhel_system_roles
