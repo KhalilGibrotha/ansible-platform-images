@@ -1,0 +1,3 @@
+# Python dependencies for the primary EE (starting set - adjust to actual use).
+jmespath          # community.general json_query filter
+pywinrm           # ansible.windows over WinRM

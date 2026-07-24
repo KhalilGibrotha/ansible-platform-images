@@ -1,0 +1,17 @@
+---
+# ee-vmware - virtualization automation (vSphere / vCenter).
+#
+# Derives from ee-base and adds the VMware collections plus their heavier Python
+# SDK (pyVmomi, aiohttp). Isolated from primary/network so a vSphere SDK bump
+# can never break an unrelated job - separate image, separate failure domain.
+version: 3
+
+images:
+  base_image:
+    # CI overrides with the ee-base digest via --build-arg EE_BASE_IMAGE.
+    name: ghcr.io/khalilgibrotha/ee-base:latest
+
+dependencies:
+  galaxy: requirements.yml
+  python: requirements.txt
+  system: bindep.txt

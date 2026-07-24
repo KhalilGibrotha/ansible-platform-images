@@ -1,0 +1,17 @@
+---
+# ee-network - network device automation (Cisco, Arista, Juniper, F5, ...).
+#
+# Derives from ee-base and adds the network platform collections plus their
+# connection libraries (netmiko, ncclient, paramiko). Kept separate so the
+# network team can, when they have the appetite, lift this one directory into
+# its own repo and own its cadence - the monorepo is only the starting home.
+version: 3
+
+images:
+  base_image:
+    # CI overrides with the ee-base digest via --build-arg EE_BASE_IMAGE.
+    name: ghcr.io/khalilgibrotha/ee-base:latest
+
+dependencies:
+  galaxy: requirements.yml
+  python: requirements.txt
