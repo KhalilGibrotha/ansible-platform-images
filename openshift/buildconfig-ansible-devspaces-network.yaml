@@ -1,0 +1,57 @@
+---
+# In-cluster build of the public network authoring image.
+#
+# Binary source: the build context is uploaded from wherever the build is
+# started - a Dev Spaces workspace on this repository - so the cluster needs
+# no credential for the git host. scripts/build-in-cluster.sh does the
+# upload, follows the build, and tags the result by digest.
+#
+# The base is the community image the Containerfile defaults to; this
+# build never takes the entitled base, so the image it makes can be shared
+# outside the organisation.
+apiVersion: build.openshift.io/v1
+kind: BuildConfig
+metadata:
+  name: ansible-devspaces-network
+  labels:
+    app.kubernetes.io/part-of: ansible-platform-images
+spec:
+  runPolicy: Serial
+  successfulBuildsHistoryLimit: 3
+  failedBuildsHistoryLimit: 3
+  source:
+    type: Binary
+    binary: {}
+  strategy:
+    type: Docker
+    dockerStrategy:
+      dockerfilePath: Containerfile
+      # The base is pinned by digest in the Containerfile; forcePull makes
+      # the cluster verify that digest on every build rather than trust a
+      # node's cache.
+      forcePull: true
+      buildArgs:
+        - name: REQUIREMENTS
+          value: network
+  output:
+    to:
+      kind: ImageStreamTag
+      name: ansible-devspaces-network:build
+    # Quay later: replace the two lines above with
+    #   kind: DockerImage
+    #   name: <quay-host>/<org>/ansible-devspaces-network:build
+    # and add, at this level,
+    #   pushSecret:
+    #     name: quay-push
+    imageLabels:
+      - name: org.opencontainers.image.title
+        value: ansible-devspaces-network
+      - name: org.opencontainers.image.description
+        value: Ansible Dev Spaces authoring image with the network clients
+  resources:
+    requests:
+      cpu: 500m
+      memory: 1Gi
+    limits:
+      cpu: "2"
+      memory: 4Gi

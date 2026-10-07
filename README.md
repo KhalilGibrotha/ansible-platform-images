@@ -125,6 +125,12 @@ network clients only and no org content. Which clients, why they are in the
 image rather than installed in the workspace, and how a devfile pins the
 result are in [`devspaces/README.md`](devspaces/README.md).
 
+Where no CI runner inside the cluster exists yet, the same images build in
+the cluster from a Dev Spaces workspace on this repository, land in the
+namespace's ImageStreams by digest, and promote by digest copy: see
+[`openshift/README.md`](openshift/README.md). The pipeline form triggers
+those same builds from a runner later.
+
 CI builds both on every pull request and publishes them on merge, with the
 pushed digest in the job summary. The enterprise base is selected by the
 `DEVSPACES_ENTERPRISE_BASE` repository variable and the two

@@ -1,0 +1,29 @@
+---
+# The two authoring images, as ImageStreams in the namespace the build runs
+# in. The integrated registry serves them to that namespace with no pull
+# secret; a Quay organisation takes over later by changing each
+# BuildConfig's output, nothing else.
+#
+# Tag discipline, enforced by the scripts rather than the cluster:
+#   build      the moving tag a BuildConfig writes; never pinned by anyone
+#   sha-<sha>  one per commit, written by digest after a build; immutable
+#   vX.Y.Z     a promotion, written by digest from a sha- tag; immutable
+apiVersion: image.openshift.io/v1
+kind: ImageStream
+metadata:
+  name: ansible-devspaces-network
+  labels:
+    app.kubernetes.io/part-of: ansible-platform-images
+spec:
+  lookupPolicy:
+    local: false
+---
+apiVersion: image.openshift.io/v1
+kind: ImageStream
+metadata:
+  name: ansible-devspaces
+  labels:
+    app.kubernetes.io/part-of: ansible-platform-images
+spec:
+  lookupPolicy:
+    local: false

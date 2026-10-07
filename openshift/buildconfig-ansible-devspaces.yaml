@@ -1,0 +1,46 @@
+---
+# In-cluster build of the enterprise authoring image: every client, and the
+# supported base once the organisation's registry mirrors it.
+#
+# Same binary-source shape as the network build. The base is selected at
+# start time, not here: scripts/build-in-cluster.sh passes
+# DEVSPACES_BASE as a build argument when that variable is set, so this
+# file carries no registry hostname and the lab builds it from the
+# community base unchanged.
+apiVersion: build.openshift.io/v1
+kind: BuildConfig
+metadata:
+  name: ansible-devspaces
+  labels:
+    app.kubernetes.io/part-of: ansible-platform-images
+spec:
+  runPolicy: Serial
+  successfulBuildsHistoryLimit: 3
+  failedBuildsHistoryLimit: 3
+  source:
+    type: Binary
+    binary: {}
+  strategy:
+    type: Docker
+    dockerStrategy:
+      dockerfilePath: Containerfile
+      forcePull: true
+      buildArgs:
+        - name: REQUIREMENTS
+          value: full
+  output:
+    to:
+      kind: ImageStreamTag
+      name: ansible-devspaces:build
+    imageLabels:
+      - name: org.opencontainers.image.title
+        value: ansible-devspaces
+      - name: org.opencontainers.image.description
+        value: Ansible Dev Spaces authoring image with every client the collections import
+  resources:
+    requests:
+      cpu: 500m
+      memory: 1Gi
+    limits:
+      cpu: "2"
+      memory: 4Gi
