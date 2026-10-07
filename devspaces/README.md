@@ -93,11 +93,11 @@ The upstream image is built to Red Hat's rules for Dev Spaces workspace
 images, and the layer does nothing to break them:
 
 - It derives from the supported image rather than rebuilding it, so editor
-  injection, the entrypoint, and the tool versions are upstream's.
+  injection, the entrypoint, and the tool versions come from upstream.
 - It runs as an arbitrary UID in group 0. Build steps run as root and write
   only to system paths that are world-readable; nothing the workspace
   writes at runtime is touched.
-- It ends on the upstream's unprivileged `USER`.
+- It ends on the unprivileged `USER` the upstream image sets.
 - It carries no credentials, tokens, or organisation identifiers. The root
   CA, when added, goes through `update-ca-trust`, not into any tool's
   configuration.
