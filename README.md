@@ -25,7 +25,7 @@ by digest — plus the authoring image on its own track.
 | `ee-primary` | runtime | General-purpose, most automation | `ee-base` | Platform | `community.general`, `ansible.windows`, `redhat.rhel_system_roles` |
 | `ee-vmware` | runtime | vSphere / vCenter virtualization | `ee-base` | Platform | `community.vmware`, `vmware.vmware_rest` + pyVmomi |
 | `ee-network` | runtime | Network devices (Cisco, Arista, Juniper, F5) | `ee-base` | Platform *(network team can adopt later)* | `cisco.*`, `arista.eos`, `junipernetworks.junos`, `f5networks.f5_modules` |
-| `ansible-devspaces` | authoring | The Dev Spaces workspace image (lint, molecule, navigator) | Red Hat `ansible-devspaces` | Platform | ansible-dev-tools + org certs/tooling |
+| `ansible-devspaces` | authoring | The Dev Spaces workspace image (lint, molecule, navigator) | Red Hat `ansible-devspaces` | Platform | ansible-dev-tools + org certs/tooling + the Python clients collections import (`devspaces/requirements.txt`) |
 
 ## How the layering works
 

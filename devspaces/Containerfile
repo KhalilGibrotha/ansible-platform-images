@@ -37,6 +37,17 @@ USER 0
 # RUN ansible-galaxy collection install -r /tmp/requirements.yml
 # -----------------------------------------------------------------------------
 
+# Python clients that collections import at module runtime. The workspace is
+# immutable and ships no pip for the arbitrary UID, so these land here, into
+# the same system interpreter the base image installed ansible-dev-tools with
+# (/usr/bin/python3, via dnf python3.x-pip). A venv would hide them from the
+# interpreter Ansible actually runs. requirements.txt says where each pin
+# comes from.
+COPY requirements.txt /tmp/devspaces-requirements.txt
+RUN python3 -m pip install --no-cache-dir --root-user-action=ignore \
+      -r /tmp/devspaces-requirements.txt \
+    && rm -f /tmp/devspaces-requirements.txt
+
 # Convention: return to an unprivileged UID. OpenShift overrides the actual UID
 # at runtime; this just avoids leaving root as the default.
 USER 1001
