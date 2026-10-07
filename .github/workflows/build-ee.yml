@@ -27,6 +27,19 @@ permissions:
   packages: write
 
 jobs:
+  # The in-cluster scripts cannot run here - a hosted runner has no cluster -
+  # but their own logic can: a stub oc answers from a state directory and
+  # records every call. Cheap, and it fails on a refusal the scripts claim
+  # to make and no longer do.
+  test-scripts:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Lint the shell
+        run: shellcheck -S style scripts/*.sh tests/*.sh
+      - name: Behaviour tests against a stub oc
+        run: bash tests/test-in-cluster-scripts.sh
+
   build-ees:
     runs-on: ubuntu-latest
     steps:
@@ -121,7 +134,7 @@ jobs:
             --file devspaces/Containerfile \
             "${args[@]}" \
             --label "org.opencontainers.image.title=${{ matrix.image }}" \
-            --label "org.opencontainers.image.description=Ansible Dev Spaces authoring image with the Python clients collections import (${{ matrix.requirements }} set)" \
+            --label "org.opencontainers.image.description=Ansible Dev Spaces authoring image, ${{ matrix.requirements }} client set" \
             --label "org.opencontainers.image.source=https://github.com/${{ github.repository }}" \
             --label "org.opencontainers.image.revision=${{ github.sha }}" \
             --tag "$REGISTRY/$OWNER/${{ matrix.image }}:${{ github.sha }}" \
