@@ -25,7 +25,8 @@ by digest — plus the authoring image on its own track.
 | `ee-primary` | runtime | General-purpose, most automation | `ee-base` | Platform | `community.general`, `ansible.windows`, `redhat.rhel_system_roles` |
 | `ee-vmware` | runtime | vSphere / vCenter virtualization | `ee-base` | Platform | `community.vmware`, `vmware.vmware_rest` + pyVmomi |
 | `ee-network` | runtime | Network devices (Cisco, Arista, Juniper, F5) | `ee-base` | Platform *(network team can adopt later)* | `cisco.*`, `arista.eos`, `junipernetworks.junos`, `f5networks.f5_modules` |
-| `ansible-devspaces` | authoring | The Dev Spaces workspace image (lint, molecule, navigator) | Red Hat `ansible-devspaces` | Platform | ansible-dev-tools + org certs/tooling + the Python clients collections import (`devspaces/requirements.txt`) |
+| `ansible-devspaces` | authoring | The Dev Spaces workspace image (lint, molecule, navigator) | Red Hat `ansible-devspaces` (community image in the lab) | Platform | ansible-dev-tools + org CA + every Python client the collections import (`devspaces/requirements/full.txt`) |
+| `ansible-devspaces-network` | authoring | Public variant for network-automation development | Community `ansible-devspaces`, always | Platform | ansible-dev-tools + the network clients (`devspaces/requirements/network.txt`); no org content |
 
 ## How the layering works
 
@@ -110,24 +111,25 @@ the internal registry, same pattern as the Dev Spaces tooling image.
 
 ## The Dev Spaces authoring image
 
-`devspaces/Containerfile` builds the tooling image the `ansible-dev-workspace`
-devfile consumes. It is **not** an EE and is not built by `ansible-builder` — it
-derives (`FROM`) Red Hat's supported `ansible-devspaces` image and layers org
-concerns (internal CA, extra tooling, pre-installed collections). It builds on
-its own CI track, in parallel with the EEs, because it has a different lineage.
+`devspaces/Containerfile` builds the tooling images a Dev Spaces devfile
+consumes. They are **not** EEs and are not built by `ansible-builder` — they
+derive (`FROM`) the Ansible `ansible-devspaces` image and layer the Python
+clients that collections import, plus the org CA in the enterprise build. They
+build on their own CI track, in parallel with the EEs, because they have a
+different lineage.
 
-```bash
-docker build -f devspaces/Containerfile \
-  -t ghcr.io/khalilgibrotha/ansible-devspaces:dev devspaces/
+Two builds come out of the one file: `ansible-devspaces`, the enterprise image
+from the mirrored supported base, kept in the internal registry; and
+`ansible-devspaces-network`, a public image from the community base with the
+network clients only and no org content. Which clients, why they are in the
+image rather than installed in the workspace, and how a devfile pins the
+result are in [`devspaces/README.md`](devspaces/README.md).
 
-# SECU: derive from the mirrored supported image instead of the community one
-docker build -f devspaces/Containerfile \
-  --build-arg DEVSPACES_BASE=<internal-registry>/ansible-devspaces-rhel9:<tag> \
-  -t <internal-registry>/ansible-devspaces:<tag> devspaces/
-```
-
-Once published, point the `ansible-dev-workspace` devfile's `image:` at this
-build instead of the upstream community image.
+CI builds both on every pull request and publishes them on merge, with the
+pushed digest in the job summary. The enterprise base is selected by the
+`DEVSPACES_ENTERPRISE_BASE` repository variable and the two
+`DEVSPACES_BASE_REGISTRY_*` secrets; without them the lab builds both images
+from the community base.
 
 ## Splitting an EE out later
 

@@ -1,0 +1,7 @@
+# Every Python client any supported collection imports - the enterprise
+# authoring image. One include per domain, so a domain's pins live in one
+# place and the public subset images build from the same lines.
+#
+# Add a domain by adding its file and a line here. Keep the files' comments
+# naming which collection and version each pin was copied from.
+-r network.txt

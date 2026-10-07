@@ -1,0 +1,10 @@
+# Python clients the network-automation collections import.
+#
+# This file builds the public `ansible-devspaces-network` image and is
+# included by full.txt for the enterprise image. Every pin is copied from
+# the collection's own requirements.txt at the version the hub serves -
+# never chosen here. When the hub moves a collection, re-read that file and
+# update the line beside it.
+#
+#   infoblox.nios_modules 1.8.0   ansible_collections/infoblox/nios_modules/requirements.txt
+infoblox-client==0.6.2
