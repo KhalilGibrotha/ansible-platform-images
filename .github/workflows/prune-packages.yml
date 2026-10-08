@@ -1,0 +1,91 @@
+---
+# Keep the package registry small.
+#
+# GitHub keeps every pushed image version until something deletes it; there
+# is no retention setting. This workflow is that something. It runs after
+# each publish, weekly, and on demand, and deletes candidate versions while
+# leaving promoted ones alone:
+#
+#   kept     every version tagged v* (promoted; consumers pin these), and the
+#            newest remaining version of each image (the current candidate)
+#   deleted  every other version older than the cut-off
+#
+# That is the lifecycle rule in one place: a sha- build is a candidate that
+# may vanish, a vX.Y.Z tag is forever. Pin digests of promoted tags only.
+#
+# DRY RUN BY DEFAULT. Nothing is deleted until the PRUNE_DRY_RUN repository
+# variable is set to "false"; until then each run lists what it would
+# remove in the job log. A manual run can override either way.
+#
+# Where publishing is off (no PUBLISH_IMAGES variable) nothing accumulates
+# and this workflow does nothing, which is the state of a twin repository
+# with a shared package quota.
+#
+# The token is a classic personal access token with read:packages and
+# delete:packages, stored as the PACKAGES_PRUNE_TOKEN secret. The default
+# workflow token cannot use the tag filters this policy needs.
+name: prune-packages
+
+"on":
+  schedule:
+    - cron: "17 6 * * 1"
+  workflow_run:
+    workflows: [build-ee]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "List what would be deleted without deleting it"
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+env:
+  DRY_RUN: >-
+    ${{ (github.event_name == 'workflow_dispatch' && inputs.dry_run)
+        || (github.event_name != 'workflow_dispatch' && vars.PRUNE_DRY_RUN != 'false') }}
+
+jobs:
+  prune:
+    if: vars.PUBLISH_IMAGES == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Say what mode this is
+        run: |
+          echo "dry run: $DRY_RUN"
+          if [ "$DRY_RUN" = "true" ]; then
+            echo "Listing only. Set the PRUNE_DRY_RUN repository variable to false to delete." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      # The images this repository publishes. Pinned to a commit rather than
+      # a tag because the action deletes things.
+      - name: Prune the platform images
+        uses: snok/container-retention-policy@d3bdcf5ce9b05f685154e4a16c39233b245e3d53 # v3.1.0
+        with:
+          account: user
+          token: ${{ secrets.PACKAGES_PRUNE_TOKEN }}
+          image-names: "ee-base ee-primary ee-vmware ee-network ansible-devspaces ansible-devspaces-network"
+          image-tags: "!v*"
+          tag-selection: both
+          cut-off: 2d
+          keep-n-most-recent: 1
+          dry-run: ${{ env.DRY_RUN }}
+
+      # The documentation toolchain image is published from its own
+      # repository but shares this account's storage, and its per-commit
+      # builds are most of what the account holds. Its releases are v* tags
+      # and `latest`; both stay.
+      - name: Prune the documentation toolchain image
+        uses: snok/container-retention-policy@d3bdcf5ce9b05f685154e4a16c39233b245e3d53 # v3.1.0
+        with:
+          account: user
+          token: ${{ secrets.PACKAGES_PRUNE_TOKEN }}
+          image-names: "dac-toolkit"
+          image-tags: "!v* !latest"
+          tag-selection: both
+          cut-off: 2d
+          keep-n-most-recent: 2
+          dry-run: ${{ env.DRY_RUN }}

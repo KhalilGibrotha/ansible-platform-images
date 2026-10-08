@@ -17,6 +17,12 @@ by digest — plus the authoring image on its own track.
 > package registry. When the internal registry exists, change `REGISTRY` in the
 > workflow (and the `base_image` / `DEVSPACES_BASE` defaults) and repoint the
 > consuming `ansible-dev-workspace` devfile at the published image.
+>
+> Where publishing is on, `prune-packages.yml` keeps the registry small: every
+> `v*` tag stays, the newest candidate of each image stays, and older candidates
+> are deleted after two days. It lists rather than deletes until the
+> `PRUNE_DRY_RUN` repository variable is `false`. Pin digests of promoted tags
+> only; a `sha-` build is a candidate that may vanish.
 
 ## The fleet
 
