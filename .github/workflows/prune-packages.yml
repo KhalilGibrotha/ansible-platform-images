@@ -61,15 +61,17 @@ jobs:
           fi
 
       # The images this repository publishes. Pinned to a commit rather than
-      # a tag because the action deletes things.
+      # a tag because the action deletes things. Only TAGGED versions are
+      # candidates: an untagged version can be a layer manifest that a kept
+      # image index still points at, and deleting it breaks the kept image.
       - name: Prune the platform images
-        uses: snok/container-retention-policy@d3bdcf5ce9b05f685154e4a16c39233b245e3d53 # v3.1.0
+        uses: snok/container-retention-policy@d3bdcf5ce9b05f685154e4a16c39233b245e3d53  # v3.1.0
         with:
           account: user
           token: ${{ secrets.PACKAGES_PRUNE_TOKEN }}
           image-names: "ee-base ee-primary ee-vmware ee-network ansible-devspaces ansible-devspaces-network"
           image-tags: "!v*"
-          tag-selection: both
+          tag-selection: tagged
           cut-off: 2d
           keep-n-most-recent: 1
           dry-run: ${{ env.DRY_RUN }}
@@ -77,15 +79,18 @@ jobs:
       # The documentation toolchain image is published from its own
       # repository but shares this account's storage, and its per-commit
       # builds are most of what the account holds. Its releases are v* tags
-      # and `latest`; both stay.
+      # and `latest`; both stay. So do its sha256-* tags, which are the
+      # signatures and attestations of kept images. Its untagged versions are
+      # left alone for the same reason as above; they are the multi-platform
+      # children and attestation manifests of kept releases.
       - name: Prune the documentation toolchain image
-        uses: snok/container-retention-policy@d3bdcf5ce9b05f685154e4a16c39233b245e3d53 # v3.1.0
+        uses: snok/container-retention-policy@d3bdcf5ce9b05f685154e4a16c39233b245e3d53  # v3.1.0
         with:
           account: user
           token: ${{ secrets.PACKAGES_PRUNE_TOKEN }}
           image-names: "dac-toolkit"
-          image-tags: "!v* !latest"
-          tag-selection: both
+          image-tags: "!v* !latest !sha256-*"
+          tag-selection: tagged
           cut-off: 2d
           keep-n-most-recent: 2
           dry-run: ${{ env.DRY_RUN }}
