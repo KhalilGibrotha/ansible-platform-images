@@ -25,10 +25,12 @@ env:
   # organisation name usually is not. Nothing here names a particular owner,
   # so a twin of this repository needs no edit to build.
   #
-  # Publishing is opt-in. Images are pushed only where the PUBLISH_IMAGES
-  # repository variable is "true"; everywhere else a push to main proves the
-  # images build and sends nothing to the package registry. That keeps a
-  # twin with a shared package quota from filling it by accident.
+  # Publishing is opt-in, per image. The PUBLISH_IMAGES repository variable
+  # is "all" (or "true") to push everything, or a space-separated list of
+  # image names to push only those, e.g. "ansible-devspaces-network". Unset,
+  # a push to main proves the images build and sends nothing to the package
+  # registry. That keeps a twin with a shared package quota from filling it
+  # by accident, and lets it publish one image for a demo without the rest.
   PUBLISH: ${{ vars.PUBLISH_IMAGES }}
 
 permissions:
@@ -65,7 +67,7 @@ jobs:
         run: pip install ansible-builder
 
       - name: Log in to GHCR
-        if: github.event_name != 'pull_request' && env.PUBLISH == 'true'
+        if: github.event_name != 'pull_request' && env.PUBLISH != ''
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login "$REGISTRY" -u "${{ github.actor }}" --password-stdin
 
       - name: Build ee-base
@@ -91,11 +93,14 @@ jobs:
             echo "::endgroup::"
           done
 
-      - name: Push all EE images
-        if: github.event_name != 'pull_request' && env.PUBLISH == 'true'
+      - name: Push the selected EE images
+        if: github.event_name != 'pull_request' && env.PUBLISH != ''
         run: |
           for img in ee-base ee-primary ee-vmware ee-network; do
-            docker push "$REGISTRY/$OWNER/$img:${{ github.sha }}"
+            case " $PUBLISH " in
+              *" all "*|*" true "*|*" $img "*) docker push "$REGISTRY/$OWNER/$img:${{ github.sha }}" ;;
+              *) echo "$img: built, not published; PUBLISH_IMAGES does not name it." >> "$GITHUB_STEP_SUMMARY" ;;
+            esac
           done
 
   # Independent track: the Dev Spaces authoring images. They derive from the
@@ -149,7 +154,7 @@ jobs:
           echo "ENTERPRISE_BASE=$base" >> "$GITHUB_ENV"
 
       - name: Log in to GHCR
-        if: github.event_name != 'pull_request' && env.PUBLISH == 'true'
+        if: github.event_name != 'pull_request' && env.PUBLISH != ''
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login "$REGISTRY" -u "${{ github.actor }}" --password-stdin
 
       - name: Log in to the enterprise base registry
@@ -177,18 +182,26 @@ jobs:
       # An image derived from the entitled base never goes to ghcr.io: it is
       # built here to prove it builds, and published from inside the
       # organisation. The community-base images are the ones this job ships.
-      - name: Note that nothing is published here
-        if: github.event_name != 'pull_request' && env.PUBLISH != 'true'
+      - name: Note that this image is not published here
+        if: >-
+          github.event_name != 'pull_request'
+          && !(env.PUBLISH == 'true' || env.PUBLISH == 'all' || contains(format(' {0} ', env.PUBLISH), format(' {0} ', matrix.image)))
         run: |
-          echo "${{ matrix.image }}: built, not published; set the PUBLISH_IMAGES repository variable to true to push." >> "$GITHUB_STEP_SUMMARY"
+          echo "${{ matrix.image }}: built, not published; name it in the PUBLISH_IMAGES repository variable, or set that to all." >> "$GITHUB_STEP_SUMMARY"
 
       - name: Note the enterprise image is not published here
-        if: github.event_name != 'pull_request' && env.PUBLISH == 'true' && env.ENTERPRISE_BASE != ''
+        if: >-
+          github.event_name != 'pull_request'
+          && (env.PUBLISH == 'true' || env.PUBLISH == 'all' || contains(format(' {0} ', env.PUBLISH), format(' {0} ', matrix.image)))
+          && env.ENTERPRISE_BASE != ''
         run: |
           echo "${{ matrix.image }}: built from the enterprise base; not pushed to $REGISTRY." >> "$GITHUB_STEP_SUMMARY"
 
       - name: Push ${{ matrix.image }}
-        if: github.event_name != 'pull_request' && env.PUBLISH == 'true' && env.ENTERPRISE_BASE == ''
+        if: >-
+          github.event_name != 'pull_request'
+          && (env.PUBLISH == 'true' || env.PUBLISH == 'all' || contains(format(' {0} ', env.PUBLISH), format(' {0} ', matrix.image)))
+          && env.ENTERPRISE_BASE == ''
         run: |
           docker push "$REGISTRY/$OWNER/${{ matrix.image }}:${{ github.sha }}"
           ref="$(docker inspect --format '{{index .RepoDigests 0}}' "$REGISTRY/$OWNER/${{ matrix.image }}:${{ github.sha }}")"

@@ -12,9 +12,9 @@ by digest — plus the authoring image on its own track.
 
 > **Where images go.** The registry namespace is the repository owner, lowercased
 > by CI, so a twin of this repository builds without editing the workflow. Images
-> are pushed only where the `PUBLISH_IMAGES` repository variable is `true`;
-> elsewhere a push to `main` proves the images build and sends nothing to the
-> package registry. When the internal registry exists, change `REGISTRY` in the
+> are pushed only where the `PUBLISH_IMAGES` repository variable names them, as
+> a space-separated list, or is `all`; elsewhere a push to `main` proves the
+> images build and sends nothing to the package registry. When the internal registry exists, change `REGISTRY` in the
 > workflow (and the `base_image` / `DEVSPACES_BASE` defaults) and repoint the
 > consuming `ansible-dev-workspace` devfile at the published image.
 >
