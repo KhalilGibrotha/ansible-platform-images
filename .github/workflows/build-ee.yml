@@ -108,11 +108,30 @@ jobs:
       # two secrets below. Unset, it builds from the community base like the
       # network image, which is the lab default. The public network image
       # never takes the override: entitled content stays private.
-      ENTERPRISE_BASE: ${{ matrix.image == 'ansible-devspaces' && vars.DEVSPACES_ENTERPRISE_BASE || '' }}
+      #
+      # GitHub withholds secrets from pull requests opened from forks and
+      # from Dependabot, so for those the private base could never be
+      # pulled and the enterprise check would always fail. They build from
+      # the community base instead, and the job summary says so.
+      SECRETS_WITHHELD: >-
+        ${{ github.event_name == 'pull_request'
+            && (github.event.pull_request.head.repo.full_name != github.repository
+                || github.actor == 'dependabot[bot]') }}
+      CONFIGURED_BASE: ${{ matrix.image == 'ansible-devspaces' && vars.DEVSPACES_ENTERPRISE_BASE || '' }}
       BASE_REGISTRY_USER: ${{ secrets.DEVSPACES_BASE_REGISTRY_USER }}
       BASE_REGISTRY_TOKEN: ${{ secrets.DEVSPACES_BASE_REGISTRY_TOKEN }}
     steps:
       - uses: actions/checkout@v4
+
+      - name: Choose the base
+        run: |
+          base="$CONFIGURED_BASE"
+          if [ -n "$base" ] && [ "$SECRETS_WITHHELD" = "true" ]; then
+            echo "::notice::Fork or Dependabot pull request: no registry secrets; ${{ matrix.image }} uses the community base"
+            echo "${{ matrix.image }}: community base; this pull request cannot read the registry secrets." >> "$GITHUB_STEP_SUMMARY"
+            base=""
+          fi
+          echo "ENTERPRISE_BASE=$base" >> "$GITHUB_ENV"
 
       - name: Log in to GHCR
         if: github.event_name != 'pull_request'

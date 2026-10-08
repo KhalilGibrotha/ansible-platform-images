@@ -4,9 +4,11 @@
 #   scripts/promote-image.sh ansible-devspaces-network sha-ab0edbba1f94 v0.1.0
 #
 # Nothing is rebuilt. The version tag points at the same digest the sha-
-# tag does, so what was tested is what ships. A version tag is written once:
-# this script refuses to move one that exists, because a tag that can move
-# is a tag nobody can trust, and the next change is a new version.
+# tag does, so what was tested is what ships. Only a sha-<commit> tag can be
+# promoted: the moving `build` tag and scratch `-dirty` builds name nothing
+# anyone can trace back to a commit. A version tag is written once; this
+# script refuses to move one that exists, because a tag that can move is a
+# tag nobody can trust, and the next change is the next version.
 set -euo pipefail
 
 name="${1:-}"; from="${2:-}"; version="${3:-}"
@@ -16,22 +18,29 @@ fi
 if ! [[ "$version" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
   echo "promote: version must look like v1.2.3, got '$version'" >&2; exit 2
 fi
-if [[ "$from" == *-dirty ]]; then
-  echo "promote: $from was built from an uncommitted tree; build from a commit first" >&2; exit 1
+if ! [[ "$from" =~ ^sha-[0-9a-f]{12}$ ]]; then
+  echo "promote: only a sha-<commit> tag from a clean build can be promoted, got '$from'" >&2
+  echo "promote: 'build' moves on every run and '-dirty' builds name no commit." >&2
+  exit 2
 fi
 
 ns="${DEVWORKSPACE_NAMESPACE:-$(oc project -q)}"
 
-if oc get -n "$ns" "istag/$name:$version" >/dev/null 2>&1; then
-  existing="$(oc get -n "$ns" "istag/$name:$version" -o jsonpath='{.image.metadata.name}')"
+istag_digest() {  # tag -> digest on stdout, or nothing if the tag is absent
+  oc get -n "$ns" "istag/$name:$1" -o jsonpath='{.image.metadata.name}' 2>/dev/null || true
+}
+
+existing="$(istag_digest "$version")"
+if [ -n "$existing" ]; then
   echo "promote: $name:$version already exists at $existing and a version never moves." >&2
   echo "promote: cut the next version instead." >&2
   exit 1
 fi
 
-digest="$(oc get -n "$ns" "istag/$name:$from" -o jsonpath='{.image.metadata.name}')"
+digest="$(istag_digest "$from")"
 if [ -z "$digest" ]; then
-  echo "promote: $name:$from not found in $ns; build it first" >&2; exit 1
+  echo "promote: $name:$from not found in $ns; build it first" >&2
+  exit 1
 fi
 
 oc tag -n "$ns" "$name@$digest" "$name:$version" >/dev/null

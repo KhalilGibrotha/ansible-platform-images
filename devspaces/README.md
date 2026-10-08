@@ -11,8 +11,12 @@ Containerfile builds two of them.
 Both are thin layers over an upstream image that already carries
 ansible-core, ansible-lint, ansible-navigator, molecule, ansible-builder,
 ansible-creator, and the `oc` and `kubectl` command-line tools. The layer adds the Python
-client libraries that collections import at module runtime and, in the
-enterprise build, the organisation's root CA. Nothing else.
+client libraries that collections import at module runtime. Nothing else.
+
+An organisation root CA belongs in the enterprise image only, and neither
+image carries one yet. The Containerfile builds both images, so the CA
+needs a step gated to the enterprise build before it is added; until then
+the placeholder in the Containerfile stays commented out.
 
 The public image is built only from the community base. The supported image
 is entitled content, so an image derived from it stays inside the
@@ -98,7 +102,7 @@ images, and the layer does nothing to break them:
   only to system paths that are world-readable; nothing the workspace
   writes at runtime is touched.
 - It ends on the unprivileged `USER` the upstream image sets.
-- It carries no credentials, tokens, or organisation identifiers. The root
-  CA, when added, goes through `update-ca-trust`, not into any tool's
-  configuration.
+- It carries no credentials, tokens, or organisation identifiers. A root
+  CA, when an enterprise-only step adds one, goes through
+  `update-ca-trust`, not into any tool's configuration.
 - It pins its base by digest, and a devfile pins it by digest the same way.

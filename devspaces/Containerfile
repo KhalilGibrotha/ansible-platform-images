@@ -41,7 +41,11 @@ LABEL org.opencontainers.image.base.name="${DEVSPACES_BASE}"
 # runtime: packages land in the system site-packages, world-readable.
 USER 0
 
-# --- Organisation layer (placeholders; the enterprise build fills these) ----
+# --- Organisation layer (placeholders; neither image carries these yet) -----
+# DO NOT simply uncomment: this file also builds the public network image,
+# and a COPY here lands in its layers even if a later step deletes the file.
+# An organisation CA needs a step gated to the enterprise build first.
+#
 # Internal root CA, so galaxy, pip, and registry pulls are trusted behind
 # the proxy:
 # COPY certs/<org>-root-ca.crt /etc/pki/ca-trust/source/anchors/

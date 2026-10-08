@@ -27,16 +27,19 @@ with no secret, and promoted to a version by copying a digest.
 
   | Item | Who grants it | Why it is needed |
   |---|---|---|
-  | `edit` role in your namespace | Usually already yours in a Dev Spaces namespace | BuildConfigs, builds, ImageStreams, tags |
-  | `system:image-builder` in your namespace | Namespace admin | Push to the integrated registry; included in `edit` |
+  | `edit` role in your namespace | Usually already yours in a Dev Spaces namespace | `oc apply` (get, create, patch), starting a binary build, following its log, tagging by digest |
   | `system:build-strategy-docker` cluster role | OpenShift platform team | The Docker build strategy is on by default and often removed by hardening; without it a build fails after everything else passed |
+  | `builder` service account bound to `system:image-builder` | Created by OpenShift in every namespace; a namespace admin restores the binding | The build pod pushes as this account, not as you |
   | Image registry operator managed | OpenShift platform team | The integrated registry is where the MVP lands images |
 
 ## Build
 
-Commit first. The script refuses an uncommitted `devspaces/` tree because
-the tag it writes names a commit, and a tag that names a tree nobody can
-check out is the first lie in the chain.
+Commit first. Everything under `devspaces/` is uploaded, untracked files
+included, so the script refuses to build unless git reports nothing there
+at all. The tag it writes names a commit, and a tag that names a tree
+nobody can check out is the first lie in the chain. A commit is built
+once: running the script again on the same commit reports the existing
+tag and builds nothing.
 
 ```bash
 bash scripts/build-in-cluster.sh network
@@ -62,8 +65,15 @@ Expected: the version pinned in `devspaces/requirements/network.txt`.
 
 The enterprise build is the same command with `full`. Until the
 organisation's registry mirrors the supported base it builds from the
-community base; when it does, set `DEVSPACES_BASE` to the mirrored image
-by digest before running it, and nothing in the repository changes.
+community base. When it does, set two variables before running it, and
+nothing in the repository changes:
+
+- `DEVSPACES_BASE`: the mirrored image, by digest.
+- `DEVSPACES_BASE_PULL_SECRET`: a secret in your namespace holding a pull
+  credential for that mirror, ideally a robot account. The script sets it
+  as the BuildConfig's pull secret. Without it the build pod has only the
+  `builder` account's credentials, which reach this cluster's integrated
+  registry and nothing else, and the build fails pulling its base.
 
 ## Promote
 
@@ -82,12 +92,23 @@ tag that moves is never pinned by anyone.
 
 ## What Changes When Quay Arrives
 
-Each BuildConfig's `output.to` becomes a `DockerImage` at the Quay
-repository, with a `pushSecret` naming a robot account's secret. The
-`sha-` and version tags become `oc image mirror` or `skopeo copy` by
-digest within Quay. The scripts' logic is the same; only the registry
-hostname moves, and Clair scanning starts running on every push without
-anything here asking for it.
+The rules stay the same, but the scripts change, because today they talk
+to ImageStreams:
+
+- Each BuildConfig's `output.to` becomes a `DockerImage` at the Quay
+  repository, with a `pushSecret` naming a robot account's secret.
+- The scripts read digests with `oc get istag` and write tags with
+  `oc tag`, and both work only on ImageStreams. Against Quay, the digest
+  comes from `skopeo inspect` (or `oc image info`) and tags are written by
+  `skopeo copy` by digest within the repository.
+- The printed pin line names the integrated registry's address; it names
+  the Quay repository instead.
+
+What carries over unchanged is the discipline: a commit is built once, a
+tag is written from a digest, a version never moves, and only a clean
+`sha-` tag can be promoted. The stub tests pin that behaviour, so the
+rewrite has a test suite waiting for it. Clair starts scanning every push
+without anything here asking for it.
 
 ## Troubleshooting
 
@@ -102,9 +123,15 @@ LimitRange in the namespace will not admit a 1Gi request or 4Gi limit.
 BuildConfig to what the namespace allows, or ask for the quota to be
 raised for the build.
 
-**`error: no image` after a successful build.** The ImageStream has no tag
-named `build`; the BuildConfig's `output.to` was edited away from it.
-`oc get istag` shows what it wrote instead.
+**`the build reported success but ... has no image` after a successful
+build.** The ImageStream has no tag named `build`; the BuildConfig's
+`output.to` was edited away from it. `oc get istag` shows what it wrote
+instead.
+
+**The enterprise build fails pulling its base with an authorization
+error.** The build pod has no credential for the mirror.
+`DEVSPACES_BASE_PULL_SECRET` was unset, or names a secret without access
+to that repository.
 
 **The workspace pulls the old image after the devfile change.** The
 DevWorkspace re-reads the devfile only on a restart from the dashboard;

@@ -25,7 +25,7 @@ by digest — plus the authoring image on its own track.
 | `ee-primary` | runtime | General-purpose, most automation | `ee-base` | Platform | `community.general`, `ansible.windows`, `redhat.rhel_system_roles` |
 | `ee-vmware` | runtime | vSphere / vCenter virtualization | `ee-base` | Platform | `community.vmware`, `vmware.vmware_rest` + pyVmomi |
 | `ee-network` | runtime | Network devices (Cisco, Arista, Juniper, F5) | `ee-base` | Platform *(network team can adopt later)* | `cisco.*`, `arista.eos`, `junipernetworks.junos`, `f5networks.f5_modules` |
-| `ansible-devspaces` | authoring | The Dev Spaces workspace image (lint, molecule, navigator) | Red Hat `ansible-devspaces` (community image in the lab) | Platform | ansible-dev-tools + org CA + every Python client the collections import (`devspaces/requirements/full.txt`) |
+| `ansible-devspaces` | authoring | The Dev Spaces workspace image (lint, molecule, navigator) | Red Hat `ansible-devspaces` (community image in the lab) | Platform | ansible-dev-tools + every Python client the collections import (`devspaces/requirements/full.txt`); org CA planned, enterprise-only |
 | `ansible-devspaces-network` | authoring | Public variant for network-automation development | Community `ansible-devspaces`, always | Platform | ansible-dev-tools + the network clients (`devspaces/requirements/network.txt`); no org content |
 
 ## How the layering works
@@ -114,8 +114,8 @@ the internal registry, same pattern as the Dev Spaces tooling image.
 `devspaces/Containerfile` builds the tooling images a Dev Spaces devfile
 consumes. They are **not** EEs and are not built by `ansible-builder` — they
 derive (`FROM`) the Ansible `ansible-devspaces` image and layer the Python
-clients that collections import, plus the org CA in the enterprise build. They
-build on their own CI track, in parallel with the EEs, because they have a
+clients that collections import. An org CA is planned for the enterprise build
+only and is not in either image yet. They build on their own CI track, in parallel with the EEs, because they have a
 different lineage.
 
 Two builds come out of the one file: `ansible-devspaces`, the enterprise image

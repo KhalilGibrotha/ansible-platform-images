@@ -47,34 +47,64 @@ else
 fi
 
 say ""
-say "2. Permissions in $ns"
-check_can() {  # verb resource label role-to-ask
-  if [ "$(oc auth can-i "$1" "$2" -n "$ns" 2>/dev/null)" = "yes" ]; then
-    ok "$3"
+say "2. Your permissions in $ns"
+# Every verb each step of the loop uses. `oc apply` needs get and patch as
+# well as create, from the second run on; a user with create alone passes a
+# create-only check and then fails before the build starts.
+check_can() {  # "verbs" resource label role-to-ask
+  local verbs="$1" resource="$2" label="$3" role="$4" denied=""
+  for verb in $verbs; do
+    [ "$(oc auth can-i "$verb" "$resource" -n "$ns" 2>/dev/null)" = "yes" ] || denied="$denied $verb"
+  done
+  if [ -z "$denied" ]; then
+    ok "$label"
   else
-    bad "$3"
-    ask "$4"
+    bad "$label (denied:$denied)"
+    ask "$role"
   fi
 }
-check_can create buildconfigs        "create BuildConfigs"                    "the 'edit' role in $ns"
-check_can create builds              "start builds"                           "the 'edit' role in $ns"
-check_can create imagestreams        "create ImageStreams"                    "the 'edit' role in $ns"
-check_can update imagestreams/layers "push to the integrated registry"        "the 'system:image-builder' role in $ns"
-check_can create imagestreamtags     "tag images by digest (promotion)"       "the 'edit' role in $ns"
-check_can create secrets             "create a push secret (Quay, later)"     "the 'edit' role in $ns"
+check_can "get create patch"   buildconfigs                    "manage BuildConfigs (oc apply)"         "the 'edit' role in $ns"
+check_can "create"             buildconfigs/instantiatebinary  "start a build from an uploaded directory" "the 'edit' role in $ns"
+check_can "get"                builds/log                      "follow a build's log"                   "the 'edit' role in $ns"
+check_can "get create patch"   imagestreams                    "manage ImageStreams (oc apply)"         "the 'edit' role in $ns"
+check_can "get create update"  imagestreamtags                 "tag images by digest (build, promote)"  "the 'edit' role in $ns"
 
-# The docker build strategy is a cluster-level grant, on by default and
-# commonly removed by hardening. Its absence fails a build with
-# 'build strategy Docker is not allowed', after everything above passed.
-if [ "$(oc auth can-i create builds/docker -n "$ns" 2>/dev/null)" = "yes" ]; then
-  ok "use the Docker build strategy"
+# The docker build strategy is a cluster-level grant, bound to every
+# authenticated user by default and commonly removed by hardening. Its
+# absence fails a build with 'build strategy Docker is not allowed', after
+# everything above passed.
+check_can "create" builds/docker "use the Docker build strategy (cluster-level grant)" \
+  "the OpenShift platform team for the 'system:build-strategy-docker' cluster role, bound to you or to the namespace"
+
+if [ "$(oc auth can-i create secrets -n "$ns" 2>/dev/null)" = "yes" ]; then
+  info "you can create secrets: needed later for a Quay push secret or an enterprise base pull secret"
 else
-  bad "use the Docker build strategy (cluster-level grant)"
-  ask "the OpenShift platform team for the 'system:build-strategy-docker' cluster role, bound to you or to the namespace"
+  info "you cannot create secrets: not needed now; needed later for Quay or the enterprise base"
 fi
 
 say ""
-say "3. Registry"
+say "3. The account that pushes"
+# The build pod pushes its output as the namespace's builder service
+# account, not as you. OpenShift creates that account in every namespace
+# when the Build capability is enabled and binds it to system:image-builder
+# through the system:image-builders role binding.
+if oc get sa builder -n "$ns" >/dev/null 2>&1; then
+  subjects="$(oc get rolebinding system:image-builders -n "$ns" -o jsonpath='{.subjects[*].name}' 2>/dev/null || true)"
+  if [ -z "$subjects" ]; then
+    ok "builder service account exists; its default push binding is not readable by you, which is normal"
+  elif printf '%s\n' "$subjects" | tr ' ' '\n' | grep -qx builder; then
+    ok "builder service account exists and system:image-builders binds it, so builds can push"
+  else
+    bad "system:image-builders does not bind the builder service account; builds cannot push"
+    ask "a namespace admin to restore it: oc policy add-role-to-user system:image-builder -z builder -n $ns"
+  fi
+else
+  bad "no builder service account in $ns"
+  ask "the OpenShift platform team: the Build capability creates it in every namespace"
+fi
+
+say ""
+say "4. Registry"
 if reg="$(oc registry info 2>/dev/null)"; then
   ok "integrated registry: $reg"
   if oc registry info --public >/dev/null 2>&1; then
@@ -88,7 +118,7 @@ else
 fi
 
 say ""
-say "4. Room to build"
+say "5. Room to build"
 if oc get resourcequota -n "$ns" >/dev/null 2>&1; then
   q="$(oc get resourcequota -n "$ns" -o jsonpath='{range .items[*]}{.metadata.name}: {.status.used.limits\.memory}/{.status.hard.limits\.memory} memory{"\n"}{end}' 2>/dev/null)"
   if [ -n "$q" ]; then
