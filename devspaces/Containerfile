@@ -1,42 +1,88 @@
-# Custom OpenShift Dev Spaces tooling image (the AUTHORING image).
+# Dev Spaces authoring images - one Containerfile, two builds.
 #
-# This is the image the `ansible-dev-workspace` devfile consumes - the inner-loop
-# environment with ansible-core, ansible-lint, ansible-navigator, molecule,
-# ansible-builder, ansible-creator, and the oc/kubectl CLIs. It is DISTINCT from
-# the EEs in this repo: those are the runtime images automation executes in;
-# this is where humans author and lint.
+# This is the image a Dev Spaces devfile consumes for Ansible work: the
+# inner-loop environment with ansible-core, ansible-lint, ansible-navigator,
+# molecule, ansible-builder, ansible-creator, and the oc/kubectl CLIs. It is
+# DISTINCT from the execution environments in this repository: those are the
+# runtime images automation executes in; this is where humans author and lint.
 #
-# It is built by deriving from Red Hat's supported Dev Spaces image and layering
-# org concerns on top (never rebuilt from scratch) - the same derive-and-layer
-# pattern the EEs use with ee-base.
+# It derives from the Ansible Dev Spaces image and layers a thin set of
+# concerns on top, never rebuilt from scratch - the same derive-and-layer
+# pattern the EEs use with ee-base. Two build arguments select the build:
 #
-#   Lab default:  the upstream community image (freely pullable, no entitlement).
-#   SECU:         override DEVSPACES_BASE with the mirrored supported image, e.g.
-#                 registry.redhat.io/ansible-automation-platform-27/ansible-devspaces-rhel9:<tag>
-#                 (needs a registry.redhat.io pull secret / AAP entitlement).
+#   DEVSPACES_BASE  which upstream image to derive from.
+#                   Default: the community image on ghcr.io, freely pullable.
+#                   Enterprise: the supported image, mirrored into the
+#                   organisation's registry, e.g.
+#                   <internal-registry>/ansible-automation-platform-27/ansible-devspaces-rhel9:<tag>@sha256:<digest>
+#                   (entitled; needs a registry.redhat.io pull secret to mirror).
+#   REQUIREMENTS    which file under requirements/ to install:
+#                   full     every Python client any supported collection
+#                            imports - the enterprise authoring image.
+#                   network  the network-automation subset - a public image
+#                            built only from the community base, so it can be
+#                            shared outside the organisation.
+#
+# See README.md in this directory for what each build is for and how a
+# devfile consumes it.
 ARG DEVSPACES_BASE=ghcr.io/ansible/ansible-devspaces:v26.7.1@sha256:d4477c8ff39c19216e184e09c3aa44f32b427a7992a0bf52fd19df597d4adb10
 FROM ${DEVSPACES_BASE}
 
-# Dev Spaces runs the workspace as an OpenShift-assigned arbitrary UID under the
-# restricted SCC. Build-time customisation runs as root (UID 0); the platform
-# re-drops to a random UID (in group 0) at runtime, so keep added paths
-# group-writable where the workspace must write.
+# Build arguments declared before FROM are only visible to FROM; redeclare
+# the ones the stage uses.
+ARG DEVSPACES_BASE
+ARG REQUIREMENTS=full
+LABEL org.opencontainers.image.base.name="${DEVSPACES_BASE}"
+
+# Dev Spaces runs the workspace as an OpenShift-assigned arbitrary UID in
+# group 0 under the restricted SCC. Build-time customisation runs as root;
+# the platform re-drops to a random UID at runtime, so anything the
+# workspace must write has to be group-0 writable. Nothing below writes at
+# runtime: packages land in the system site-packages, world-readable.
 USER 0
 
-# --- Organisation customisations (placeholders - fill in for SECU) -----------
-# Internal root CA, so galaxy/pip/registry pulls are trusted behind the proxy:
-# COPY certs/org-root-ca.crt /etc/pki/ca-trust/source/anchors/
+# --- Organisation layer (placeholders; neither image carries these yet) -----
+# DO NOT simply uncomment: this file also builds the public network image,
+# and a COPY here lands in its layers even if a later step deletes the file.
+# An organisation CA needs a step gated to the enterprise build first.
+#
+# Internal root CA, so galaxy, pip, and registry pulls are trusted behind
+# the proxy:
+# COPY certs/<org>-root-ca.crt /etc/pki/ca-trust/source/anchors/
 # RUN update-ca-trust
 #
 # Extra OS tooling not in the base image:
 # RUN dnf -y install <pkg> && dnf clean all
-#
-# Collections pre-installed in every workspace (keep in step with the content
-# repo's collections/requirements.yml):
-# COPY requirements.yml /tmp/requirements.yml
-# RUN ansible-galaxy collection install -r /tmp/requirements.yml
 # -----------------------------------------------------------------------------
 
-# Convention: return to an unprivileged UID. OpenShift overrides the actual UID
-# at runtime; this just avoids leaving root as the default.
-USER 1001
+# Python clients that collections import at module runtime.
+#
+# In an execution environment ansible-builder reads each collection's own
+# requirements.txt and installs it. The authoring image has no builder step,
+# and the workspace is immutable - no pip for the arbitrary UID, on purpose,
+# so nobody installs anything at runtime - so the same pins are layered here
+# at build time. They go into the system interpreter the base image installed
+# ansible-dev-tools with (/usr/bin/python3, pip from the dnf python3.x-pip
+# package); a virtual environment would hide them from the interpreter
+# Ansible actually runs. Each requirements file names the collection and
+# version every pin was copied from.
+#
+# The whole requirements/ directory lands in BOTH images' layers; the rm
+# below does not take it back out of the COPY layer. Every file there must
+# therefore be fit for the public image. An enterprise-only requirements
+# file needs a per-variant copy first.
+#
+# PIP_INDEX_URL points pip at a PyPI proxy where the build has no route to
+# pypi.org. Unset, pip uses pypi.org. A value set here is recorded in the
+# image history, which is why images built with it stay internal.
+COPY requirements/ /tmp/devspaces-requirements/
+ARG PIP_INDEX_URL
+RUN if [ -n "${PIP_INDEX_URL:-}" ]; then export PIP_INDEX_URL; else unset PIP_INDEX_URL; fi \
+    && python3 -m pip install --no-cache-dir --root-user-action=ignore \
+      -r "/tmp/devspaces-requirements/${REQUIREMENTS}.txt" \
+    && rm -rf /tmp/devspaces-requirements
+
+# Return to the unprivileged UID the upstream image uses. OpenShift
+# overrides the actual UID at runtime; this only avoids leaving root as the
+# default for a local `podman run`.
+USER 1000

@@ -1,0 +1,93 @@
+---
+# Workspace for the image repository itself: where the authoring images are
+# built in the cluster, tagged by digest, and promoted. One repository, one
+# workspace, the same rule the content repositories follow.
+#
+# The workspace has no container engine and builds nothing locally. Every
+# Build task hands the work to the cluster (a BuildConfig in this
+# namespace) and waits; the workspace is the place the oc commands run
+# with the user's own token, nothing more.
+schemaVersion: 2.2.0
+metadata:
+  name: ansible-platform-images
+  displayName: Ansible platform images
+  description: Build, tag, and promote the EE and Dev Spaces authoring images in the cluster
+components:
+  - name: tooling-container
+    container:
+      # The authoring image this repository produces, pulled from upstream
+      # until the in-cluster build of it is promoted; then pin that digest
+      # here. Pinned by tag plus digest, never a moving tag.
+      image: ghcr.io/ansible/ansible-devspaces:v26.7.1@sha256:d4477c8ff39c19216e184e09c3aa44f32b427a7992a0bf52fd19df597d4adb10
+      memoryRequest: 256M
+      memoryLimit: 2Gi
+      cpuRequest: 250m
+      cpuLimit: 1000m
+      mountSources: true
+commands:
+  - id: check-prereqs
+    exec:
+      label: "Check: what the in-cluster image loop needs, and what is missing"
+      commandLine: bash scripts/check-cluster-prereqs.sh
+      workingDir: ${PROJECT_SOURCE}
+      group:
+        kind: test
+        isDefault: true
+      component: tooling-container
+
+  - id: build-network
+    exec:
+      label: "Build: ansible-devspaces-network in this namespace"
+      commandLine: bash scripts/build-in-cluster.sh network
+      workingDir: ${PROJECT_SOURCE}
+      group:
+        kind: build
+        isDefault: true
+      component: tooling-container
+
+  - id: build-enterprise
+    exec:
+      label: "Build: ansible-devspaces (enterprise) in this namespace"
+      commandLine: bash scripts/build-in-cluster.sh full
+      workingDir: ${PROJECT_SOURCE}
+      group:
+        kind: build
+      component: tooling-container
+
+  - id: promote
+    exec:
+      label: "Promote: copy a sha- tag's digest to a version tag"
+      commandLine: >-
+        read -rp 'image (ansible-devspaces-network|ansible-devspaces): ' img &&
+        read -rp 'from tag (sha-...): ' from &&
+        read -rp 'version (vX.Y.Z): ' ver &&
+        bash scripts/promote-image.sh "$img" "$from" "$ver"
+      workingDir: ${PROJECT_SOURCE}
+      group:
+        kind: run
+      component: tooling-container
+
+  - id: list-images
+    exec:
+      label: "Show: every tag and digest in this namespace"
+      commandLine: >-
+        oc get istag -n "${DEVWORKSPACE_NAMESPACE:-$(oc project -q)}"
+        -o custom-columns='TAG:.metadata.name,DIGEST:.image.metadata.name,CREATED:.metadata.creationTimestamp'
+        --sort-by=.metadata.creationTimestamp
+      workingDir: ${PROJECT_SOURCE}
+      group:
+        kind: run
+      component: tooling-container
+
+  - id: render-ee-contexts
+    exec:
+      label: "Render: EE build contexts (ansible-builder create, no image build)"
+      commandLine: >-
+        for ee in base primary vmware network; do
+        echo "== $ee ==";
+        ansible-builder create --file "$ee/execution-environment.yml" --context "$ee/context" || exit 1;
+        done
+      workingDir: ${PROJECT_SOURCE}
+      group:
+        kind: build
+      component: tooling-container

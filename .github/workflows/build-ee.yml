@@ -27,6 +27,19 @@ permissions:
   packages: write
 
 jobs:
+  # The in-cluster scripts cannot run here - a hosted runner has no cluster -
+  # but their own logic can: a stub oc answers from a state directory and
+  # records every call. Cheap, and it fails on a refusal the scripts claim
+  # to make and no longer do.
+  test-scripts:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Lint the shell
+        run: shellcheck -S style scripts/*.sh tests/*.sh
+      - name: Behaviour tests against a stub oc
+        run: bash tests/test-in-cluster-scripts.sh
+
   build-ees:
     runs-on: ubuntu-latest
     steps:
@@ -73,24 +86,98 @@ jobs:
             docker push "$REGISTRY/$OWNER/$img:${{ github.sha }}"
           done
 
-  # Independent track: the Dev Spaces authoring image. It derives from Red Hat's
-  # devspaces image (not ee-base) and is a plain Containerfile build.
+  # Independent track: the Dev Spaces authoring images. They derive from the
+  # Ansible devspaces image (not ee-base) and are plain Containerfile builds.
+  # One Containerfile, two builds - see devspaces/README.md:
+  #   ansible-devspaces          every client, enterprise base when configured
+  #   ansible-devspaces-network  the network subset, community base, public
   build-devspaces:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - image: ansible-devspaces
+            requirements: full
+          - image: ansible-devspaces-network
+            requirements: network
+    env:
+      # The enterprise build derives from the supported image when the
+      # repository is configured for it: a DEVSPACES_ENTERPRISE_BASE variable
+      # naming the mirrored image by digest, and registry credentials in the
+      # two secrets below. Unset, it builds from the community base like the
+      # network image, which is the lab default. The public network image
+      # never takes the override: entitled content stays private.
+      #
+      # GitHub withholds secrets from pull requests opened from forks and
+      # from Dependabot, so for those the private base could never be
+      # pulled and the enterprise check would always fail. They build from
+      # the community base instead, and the job summary says so.
+      SECRETS_WITHHELD: >-
+        ${{ github.event_name == 'pull_request'
+            && (github.event.pull_request.head.repo.full_name != github.repository
+                || github.actor == 'dependabot[bot]') }}
+      CONFIGURED_BASE: ${{ matrix.image == 'ansible-devspaces' && vars.DEVSPACES_ENTERPRISE_BASE || '' }}
+      BASE_REGISTRY_USER: ${{ secrets.DEVSPACES_BASE_REGISTRY_USER }}
+      BASE_REGISTRY_TOKEN: ${{ secrets.DEVSPACES_BASE_REGISTRY_TOKEN }}
     steps:
       - uses: actions/checkout@v4
+
+      - name: Choose the base
+        run: |
+          base="$CONFIGURED_BASE"
+          if [ -n "$base" ] && [ "$SECRETS_WITHHELD" = "true" ]; then
+            echo "::notice::Fork or Dependabot pull request: no registry secrets; ${{ matrix.image }} uses the community base"
+            echo "${{ matrix.image }}: community base; this pull request cannot read the registry secrets." >> "$GITHUB_STEP_SUMMARY"
+            base=""
+          fi
+          echo "ENTERPRISE_BASE=$base" >> "$GITHUB_ENV"
 
       - name: Log in to GHCR
         if: github.event_name != 'pull_request'
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login "$REGISTRY" -u "${{ github.actor }}" --password-stdin
 
-      - name: Build the Dev Spaces tooling image
+      - name: Log in to the enterprise base registry
+        if: env.ENTERPRISE_BASE != '' && env.BASE_REGISTRY_USER != ''
         run: |
+          registry="${ENTERPRISE_BASE%%/*}"
+          echo "$BASE_REGISTRY_TOKEN" | docker login "$registry" -u "$BASE_REGISTRY_USER" --password-stdin
+
+      - name: Build ${{ matrix.image }}
+        run: |
+          args=(--build-arg "REQUIREMENTS=${{ matrix.requirements }}")
+          if [ -n "$ENTERPRISE_BASE" ]; then
+            args+=(--build-arg "DEVSPACES_BASE=$ENTERPRISE_BASE")
+          fi
           docker build \
             --file devspaces/Containerfile \
-            --tag "$REGISTRY/$OWNER/ansible-devspaces:${{ github.sha }}" \
+            "${args[@]}" \
+            --label "org.opencontainers.image.title=${{ matrix.image }}" \
+            --label "org.opencontainers.image.description=Ansible Dev Spaces authoring image, ${{ matrix.requirements }} client set" \
+            --label "org.opencontainers.image.source=https://github.com/${{ github.repository }}" \
+            --label "org.opencontainers.image.revision=${{ github.sha }}" \
+            --tag "$REGISTRY/$OWNER/${{ matrix.image }}:${{ github.sha }}" \
             devspaces/
 
-      - name: Push the Dev Spaces tooling image
-        if: github.event_name != 'pull_request'
-        run: docker push "$REGISTRY/$OWNER/ansible-devspaces:${{ github.sha }}"
+      # An image derived from the entitled base never goes to ghcr.io: it is
+      # built here to prove it builds, and published from inside the
+      # organisation. The community-base images are the ones this job ships.
+      - name: Note the enterprise image is not published here
+        if: github.event_name != 'pull_request' && env.ENTERPRISE_BASE != ''
+        run: |
+          echo "${{ matrix.image }}: built from the enterprise base; not pushed to $REGISTRY." >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Push ${{ matrix.image }}
+        if: github.event_name != 'pull_request' && env.ENTERPRISE_BASE == ''
+        run: |
+          docker push "$REGISTRY/$OWNER/${{ matrix.image }}:${{ github.sha }}"
+          ref="$(docker inspect --format '{{index .RepoDigests 0}}' "$REGISTRY/$OWNER/${{ matrix.image }}:${{ github.sha }}")"
+          {
+            echo "### ${{ matrix.image }}"
+            echo
+            echo "Pin this in a devfile (tag for humans, digest for the kubelet):"
+            echo
+            echo '```text'
+            echo "$REGISTRY/$OWNER/${{ matrix.image }}:${{ github.sha }}@${ref##*@}"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
