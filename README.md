@@ -10,12 +10,13 @@ playbooks) are authored and tested elsewhere and run inside these images.
 One thin shared base, purpose-built EEs layered on top, built once and promoted
 by digest — plus the authoring image on its own track.
 
-> **Registry namespace is temporary.** These images publish to
-> `ghcr.io/khalilgibrotha/*` for now. When the platform is rebuilt internally,
-> change `REGISTRY` and `OWNER` in the CI workflow (and the `base_image` /
-> `DEVSPACES_BASE` defaults) to the internal registry, and repoint the consuming
-> `ansible-dev-workspace` devfile at the published image. The references are
-> deliberately in few, obvious places.
+> **Where images go.** The registry namespace is the repository owner, lowercased
+> by CI, so a twin of this repository builds without editing the workflow. Images
+> are pushed only where the `PUBLISH_IMAGES` repository variable is `true`;
+> elsewhere a push to `main` proves the images build and sends nothing to the
+> package registry. When the internal registry exists, change `REGISTRY` in the
+> workflow (and the `base_image` / `DEVSPACES_BASE` defaults) and repoint the
+> consuming `ansible-dev-workspace` devfile at the published image.
 
 ## The fleet
 

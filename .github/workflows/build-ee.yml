@@ -20,7 +20,16 @@ name: build-ee
 
 env:
   REGISTRY: ghcr.io
-  OWNER: khalilgibrotha        # GHCR namespace (must be lowercase)
+  # The registry namespace is the repository owner, lowercased by the first
+  # step of each build job: image names must be lowercase, and a GitHub
+  # organisation name usually is not. Nothing here names a particular owner,
+  # so a twin of this repository needs no edit to build.
+  #
+  # Publishing is opt-in. Images are pushed only where the PUBLISH_IMAGES
+  # repository variable is "true"; everywhere else a push to main proves the
+  # images build and sends nothing to the package registry. That keeps a
+  # twin with a shared package quota from filling it by accident.
+  PUBLISH: ${{ vars.PUBLISH_IMAGES }}
 
 permissions:
   contents: read
@@ -45,6 +54,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Registry namespace from the repository owner, lowercased
+        run: echo "OWNER=${GITHUB_REPOSITORY_OWNER,,}" >> "$GITHUB_ENV"
+
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
@@ -53,7 +65,7 @@ jobs:
         run: pip install ansible-builder
 
       - name: Log in to GHCR
-        if: github.event_name != 'pull_request'
+        if: github.event_name != 'pull_request' && env.PUBLISH == 'true'
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login "$REGISTRY" -u "${{ github.actor }}" --password-stdin
 
       - name: Build ee-base
@@ -80,7 +92,7 @@ jobs:
           done
 
       - name: Push all EE images
-        if: github.event_name != 'pull_request'
+        if: github.event_name != 'pull_request' && env.PUBLISH == 'true'
         run: |
           for img in ee-base ee-primary ee-vmware ee-network; do
             docker push "$REGISTRY/$OWNER/$img:${{ github.sha }}"
@@ -123,6 +135,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Registry namespace from the repository owner, lowercased
+        run: echo "OWNER=${GITHUB_REPOSITORY_OWNER,,}" >> "$GITHUB_ENV"
+
       - name: Choose the base
         run: |
           base="$CONFIGURED_BASE"
@@ -134,7 +149,7 @@ jobs:
           echo "ENTERPRISE_BASE=$base" >> "$GITHUB_ENV"
 
       - name: Log in to GHCR
-        if: github.event_name != 'pull_request'
+        if: github.event_name != 'pull_request' && env.PUBLISH == 'true'
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login "$REGISTRY" -u "${{ github.actor }}" --password-stdin
 
       - name: Log in to the enterprise base registry
@@ -162,13 +177,18 @@ jobs:
       # An image derived from the entitled base never goes to ghcr.io: it is
       # built here to prove it builds, and published from inside the
       # organisation. The community-base images are the ones this job ships.
+      - name: Note that nothing is published here
+        if: github.event_name != 'pull_request' && env.PUBLISH != 'true'
+        run: |
+          echo "${{ matrix.image }}: built, not published; set the PUBLISH_IMAGES repository variable to true to push." >> "$GITHUB_STEP_SUMMARY"
+
       - name: Note the enterprise image is not published here
-        if: github.event_name != 'pull_request' && env.ENTERPRISE_BASE != ''
+        if: github.event_name != 'pull_request' && env.PUBLISH == 'true' && env.ENTERPRISE_BASE != ''
         run: |
           echo "${{ matrix.image }}: built from the enterprise base; not pushed to $REGISTRY." >> "$GITHUB_STEP_SUMMARY"
 
       - name: Push ${{ matrix.image }}
-        if: github.event_name != 'pull_request' && env.ENTERPRISE_BASE == ''
+        if: github.event_name != 'pull_request' && env.PUBLISH == 'true' && env.ENTERPRISE_BASE == ''
         run: |
           docker push "$REGISTRY/$OWNER/${{ matrix.image }}:${{ github.sha }}"
           ref="$(docker inspect --format '{{index .RepoDigests 0}}' "$REGISTRY/$OWNER/${{ matrix.image }}:${{ github.sha }}")"
