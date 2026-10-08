@@ -18,9 +18,12 @@ image carries one yet. The Containerfile builds both images, so the CA
 needs a step gated to the enterprise build before it is added; until then
 the placeholder in the Containerfile stays commented out.
 
-The public image is built only from the community base. The supported image
-is entitled content, so an image derived from it stays inside the
-organisation's registry.
+The public image is the network image CI builds on a hosted runner, only
+ever from the community base. The supported image is entitled content, so
+an image derived from it stays inside the organisation's registry, and CI
+does not push it. Images built inside the cluster stay internal too, even
+the network one: OpenShift stamps the build namespace into every image it
+builds, and a pip proxy set for the build is recorded in its history.
 
 ## Why the Clients Are in the Image
 
@@ -48,11 +51,15 @@ components:
       image: <registry>/<namespace>/ansible-devspaces-network:<tag>@sha256:<digest>
 ```
 
-A private image needs a pull secret in the workspace namespace, labeled
-`controller.devfile.io/devworkspace_pullsecret: 'true'` so Dev Spaces
-attaches it. A public image needs nothing.
+A private image needs a pull secret in the workspace namespace carrying
+two labels, `controller.devfile.io/devworkspace_pullsecret: 'true'` and
+`controller.devfile.io/watch-secret: 'true'`, so Dev Spaces attaches it. A
+public image needs nothing, and neither does an image in the workspace's
+own namespace in the integrated registry.
 
-Verify after the workspace restarts:
+Apply the devfile change with the editor's **Restart Workspace from Local
+Devfile** command. A restart from the dashboard reuses the devfile the
+workspace was created with and keeps the old image. Then verify:
 
 ```bash
 python3 -c "import infoblox_client; print(infoblox_client.__version__)"
@@ -72,8 +79,9 @@ Expected: the version pinned in `requirements/network.txt`.
 2. Add the line to the domain file under `requirements/`, with a comment
    naming the collection and version it came from. A new domain gets a new
    file and one `-r` line in `full.txt`.
-3. Open a pull request. CI builds both images on every pull request and
-   publishes them on merge, with the pushed digests in the job summary.
+3. Open a pull request. CI builds both images on every pull request and,
+   on merge, publishes every one built from the community base, with the
+   pushed digests in the job summary.
 
 ## Building Locally
 

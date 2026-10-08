@@ -159,8 +159,16 @@ jobs:
             --tag "$REGISTRY/$OWNER/${{ matrix.image }}:${{ github.sha }}" \
             devspaces/
 
+      # An image derived from the entitled base never goes to ghcr.io: it is
+      # built here to prove it builds, and published from inside the
+      # organisation. The community-base images are the ones this job ships.
+      - name: Note the enterprise image is not published here
+        if: github.event_name != 'pull_request' && env.ENTERPRISE_BASE != ''
+        run: |
+          echo "${{ matrix.image }}: built from the enterprise base; not pushed to $REGISTRY." >> "$GITHUB_STEP_SUMMARY"
+
       - name: Push ${{ matrix.image }}
-        if: github.event_name != 'pull_request'
+        if: github.event_name != 'pull_request' && env.ENTERPRISE_BASE == ''
         run: |
           docker push "$REGISTRY/$OWNER/${{ matrix.image }}:${{ github.sha }}"
           ref="$(docker inspect --format '{{index .RepoDigests 0}}' "$REGISTRY/$OWNER/${{ matrix.image }}:${{ github.sha }}")"

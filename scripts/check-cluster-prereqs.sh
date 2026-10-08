@@ -51,10 +51,15 @@ say "2. Your permissions in $ns"
 # Every verb each step of the loop uses. `oc apply` needs get and patch as
 # well as create, from the second run on; a user with create alone passes a
 # create-only check and then fails before the build starts.
-check_can() {  # "verbs" resource label role-to-ask
-  local verbs="$1" resource="$2" label="$3" role="$4" denied=""
+#
+# Subresources go in --subresource. `oc auth can-i create builds/docker`
+# reads `docker` as the NAME of a build, so it answers yes for anyone who
+# can create builds - including someone the docker grant was taken from.
+check_can() {  # "verbs" resource subresource label role-to-ask
+  local verbs="$1" resource="$2" sub="$3" label="$4" role="$5" denied="" extra=()
+  [ -n "$sub" ] && extra=(--subresource="$sub")
   for verb in $verbs; do
-    [ "$(oc auth can-i "$verb" "$resource" -n "$ns" 2>/dev/null)" = "yes" ] || denied="$denied $verb"
+    [ "$(oc auth can-i "$verb" "$resource" ${extra[@]+"${extra[@]}"} -n "$ns" 2>/dev/null)" = "yes" ] || denied="$denied $verb"
   done
   if [ -z "$denied" ]; then
     ok "$label"
@@ -63,17 +68,17 @@ check_can() {  # "verbs" resource label role-to-ask
     ask "$role"
   fi
 }
-check_can "get create patch"   buildconfigs                    "manage BuildConfigs (oc apply)"         "the 'edit' role in $ns"
-check_can "create"             buildconfigs/instantiatebinary  "start a build from an uploaded directory" "the 'edit' role in $ns"
-check_can "get"                builds/log                      "follow a build's log"                   "the 'edit' role in $ns"
-check_can "get create patch"   imagestreams                    "manage ImageStreams (oc apply)"         "the 'edit' role in $ns"
-check_can "get create update"  imagestreamtags                 "tag images by digest (build, promote)"  "the 'edit' role in $ns"
+check_can "get create patch"   buildconfigs    ""                 "manage BuildConfigs (oc apply, build arguments)" "the 'edit' role in $ns"
+check_can "create"             buildconfigs    instantiatebinary  "start a build from an uploaded directory"        "the 'edit' role in $ns"
+check_can "get"                builds          log                "follow a build's log"                            "the 'edit' role in $ns"
+check_can "get create patch"   imagestreams    ""                 "manage ImageStreams (oc apply)"                  "the 'edit' role in $ns"
+check_can "get create update"  imagestreamtags ""                 "tag images by digest (build, promote)"           "the 'edit' role in $ns"
 
 # The docker build strategy is a cluster-level grant, bound to every
 # authenticated user by default and commonly removed by hardening. Its
 # absence fails a build with 'build strategy Docker is not allowed', after
 # everything above passed.
-check_can "create" builds/docker "use the Docker build strategy (cluster-level grant)" \
+check_can "create" builds docker "use the Docker build strategy (cluster-level grant)" \
   "the OpenShift platform team for the 'system:build-strategy-docker' cluster role, bound to you or to the namespace"
 
 if [ "$(oc auth can-i create secrets -n "$ns" 2>/dev/null)" = "yes" ]; then
@@ -105,6 +110,10 @@ fi
 
 say ""
 say "4. Registry"
+# `oc registry info` finds the registry through an ImageStream in this
+# namespace or in `openshift`. Before the first build there may be none in
+# either - sample streams are often removed - so a failure here is not proof
+# the registry is missing, and is reported as information only.
 if reg="$(oc registry info 2>/dev/null)"; then
   ok "integrated registry: $reg"
   if oc registry info --public >/dev/null 2>&1; then
@@ -113,8 +122,9 @@ if reg="$(oc registry info 2>/dev/null)"; then
     info "no public route; the in-cluster address above is the one devfiles pin"
   fi
 else
-  bad "integrated registry is not reachable or not enabled"
-  ask "the OpenShift platform team to confirm the image registry operator is managed"
+  info "could not look up the integrated registry; normal before the first build,"
+  info "when no ImageStream exists to ask. If the build then fails to push, ask the"
+  info "OpenShift platform team to confirm the image registry operator is managed."
 fi
 
 say ""

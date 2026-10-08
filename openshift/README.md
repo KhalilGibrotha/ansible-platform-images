@@ -6,10 +6,12 @@ assumes a Dev Spaces workspace opened on this repository and the `oc`
 token it carries. The pipeline form, where a runner triggers the same
 builds, is described in the repository README.*
 
-What you get: the public network authoring image and the enterprise
-authoring image built by the cluster from this working tree, tagged by
-digest in your namespace, which any workspace in that namespace can pull
-with no secret, and promoted to a version by copying a digest.
+What you get: the network and enterprise authoring images built by the
+cluster from this working tree, tagged by digest in your namespace, which
+any workspace in that namespace can pull with no secret, and promoted to a
+version by copying a digest. Both stay internal. OpenShift stamps the build
+namespace into every image it builds, so even the network image built here
+is not the public one; that one comes from CI on a hosted runner.
 
 ## What You Need
 
@@ -21,16 +23,16 @@ with no secret, and promoted to a version by copying a digest.
   bash scripts/check-cluster-prereqs.sh
   ```
 
-  Expected: every line `ok`, ending `everything the MVP needs is in place`.
-  Each `MISSING` line carries an `ask for:` line, and that line is the
-  whole request to make. The items it can name:
+  Expected: `ok` and `info` lines, no `MISSING`, ending `everything the
+  MVP needs is in place`. Each `MISSING` line carries an `ask for:` line,
+  and that line is the whole request to make. The items it can name:
 
   | Item | Who grants it | Why it is needed |
   |---|---|---|
   | `edit` role in your namespace | Usually already yours in a Dev Spaces namespace | `oc apply` (get, create, patch), starting a binary build, following its log, tagging by digest |
   | `system:build-strategy-docker` cluster role | OpenShift platform team | The Docker build strategy is on by default and often removed by hardening; without it a build fails after everything else passed |
   | `builder` service account bound to `system:image-builder` | Created by OpenShift in every namespace; a namespace admin restores the binding | The build pod pushes as this account, not as you |
-  | Image registry operator managed | OpenShift platform team | The integrated registry is where the MVP lands images |
+  | Image registry operator managed | OpenShift platform team | The integrated registry is where the MVP lands images. The check reports it as `info` only: it cannot find the registry before your namespace has an ImageStream |
 
 ## Build
 
@@ -49,13 +51,19 @@ The build log streams, then:
 
 ```text
 built:  ansible-devspaces-network:sha-ab0edbba1f94
+base:   ghcr.io/ansible/ansible-devspaces:v26.7.1@sha256:...
 digest: sha256:...
 
   image: image-registry.openshift-image-registry.svc:5000/<ns>/ansible-devspaces-network:sha-ab0edbba1f94@sha256:...
 ```
 
+The `base:` line is read back from the built image. The script refuses to
+tag an image whose base is not the one it asked for.
+
 That last line goes into a content repository's devfile as its `image:`.
-Restart that workspace, then prove the image is the one you built:
+Apply it with the editor's **Restart Workspace from Local Devfile**
+command; a restart from the dashboard keeps the devfile the workspace was
+created with. Then prove the image is the one you built:
 
 ```bash
 python3 -c "import infoblox_client; print(infoblox_client.__version__)"
@@ -74,6 +82,20 @@ nothing in the repository changes:
   as the BuildConfig's pull secret. Without it the build pod has only the
   `builder` account's credentials, which reach this cluster's integrated
   registry and nothing else, and the build fails pulling its base.
+
+Build arguments are written onto the BuildConfig, not passed to
+`oc start-build`, because a binary build ignores `--build-arg`. Every run
+rewrites them, so a base set for one build does not linger into the next.
+
+Where the cluster has no route to `pypi.org`, set `PIP_INDEX_URL` to the
+organisation's PyPI proxy for either build. If that proxy presents a
+certificate from an internal CA, the build cannot trust it yet: neither
+image carries the CA. That is the case for the enterprise-only CA step the
+Containerfile describes.
+
+The community base comes from `ghcr.io`. A cluster that reaches registries
+only through mirrors needs `ghcr.io/ansible` mirrored, or a
+`DEVSPACES_BASE` pointing at a copy in a registry it can reach.
 
 ## Promote
 
@@ -133,9 +155,15 @@ error.** The build pod has no credential for the mirror.
 `DEVSPACES_BASE_PULL_SECRET` was unset, or names a secret without access
 to that repository.
 
-**The workspace pulls the old image after the devfile change.** The
-DevWorkspace re-reads the devfile only on a restart from the dashboard;
-an editor reload keeps the pod.
+**The workspace pulls the old image after the devfile change.** A restart
+from the dashboard reuses the devfile the workspace was created with, and
+an editor reload keeps the pod. Use the editor's **Restart Workspace from
+Local Devfile** command.
+
+**`the image was built from ... not ...` after a build.** The base label in
+the built image does not match the base the script asked for, so the
+image got no `sha-` tag. Check the BuildConfig's build arguments with
+`oc get bc/<name> -o yaml`.
 
 ## Not Verified Here
 
@@ -144,3 +172,15 @@ API and validated for syntax, not run against a cluster: the author had
 no cluster to run them on. The first run in your namespace is the test.
 If a command's output differs from what this guide shows, the guide is
 wrong, and the fix belongs here.
+
+Open questions the first run answers:
+
+- Whether the cluster's builder accepts the base as `name:tag@sha256:...`,
+  the form the Containerfile uses.
+- Whether the build pod reaches `ghcr.io` directly or through a configured
+  mirror.
+- Whether `jsonpath` can read the image's labels at
+  `.image.dockerImageMetadata.Config.Labels`. If it cannot, the script
+  says the base was not verified rather than failing.
+- Whether the interactive Promote task in the devfile gets a terminal it
+  can prompt in. The script itself takes arguments and needs none.

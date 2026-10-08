@@ -26,8 +26,11 @@ fi
 
 ns="${DEVWORKSPACE_NAMESPACE:-$(oc project -q)}"
 
-istag_digest() {  # tag -> digest on stdout, or nothing if the tag is absent
-  oc get -n "$ns" "istag/$name:$1" -o jsonpath='{.image.metadata.name}' 2>/dev/null || true
+# Digest for a tag, or nothing when the tag does not exist. Any other
+# error - Forbidden, a timeout - stops the script: treating it as "absent"
+# would let a version that exists be written over.
+istag_digest() {  # tag
+  oc get -n "$ns" "istag/$name:$1" --ignore-not-found -o jsonpath='{.image.metadata.name}'
 }
 
 existing="$(istag_digest "$version")"

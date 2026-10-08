@@ -66,8 +66,19 @@ USER 0
 # package); a virtual environment would hide them from the interpreter
 # Ansible actually runs. Each requirements file names the collection and
 # version every pin was copied from.
+#
+# The whole requirements/ directory lands in BOTH images' layers; the rm
+# below does not take it back out of the COPY layer. Every file there must
+# therefore be fit for the public image. An enterprise-only requirements
+# file needs a per-variant copy first.
+#
+# PIP_INDEX_URL points pip at a PyPI proxy where the build has no route to
+# pypi.org. Unset, pip uses pypi.org. A value set here is recorded in the
+# image history, which is why images built with it stay internal.
 COPY requirements/ /tmp/devspaces-requirements/
-RUN python3 -m pip install --no-cache-dir --root-user-action=ignore \
+ARG PIP_INDEX_URL
+RUN if [ -n "${PIP_INDEX_URL:-}" ]; then export PIP_INDEX_URL; else unset PIP_INDEX_URL; fi \
+    && python3 -m pip install --no-cache-dir --root-user-action=ignore \
       -r "/tmp/devspaces-requirements/${REQUIREMENTS}.txt" \
     && rm -rf /tmp/devspaces-requirements
 

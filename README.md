@@ -129,13 +129,16 @@ Where no CI runner inside the cluster exists yet, the same images build in
 the cluster from a Dev Spaces workspace on this repository, land in the
 namespace's ImageStreams by digest, and promote by digest copy: see
 [`openshift/README.md`](openshift/README.md). The pipeline form triggers
-those same builds from a runner later.
+those same builds from a runner later. Images built in the cluster stay
+internal, the network one included.
 
-CI builds both on every pull request and publishes them on merge, with the
-pushed digest in the job summary. The enterprise base is selected by the
-`DEVSPACES_ENTERPRISE_BASE` repository variable and the two
-`DEVSPACES_BASE_REGISTRY_*` secrets; without them the lab builds both images
-from the community base.
+CI builds both on every pull request and, on merge, publishes the ones
+built from the community base, with the pushed digest in the job summary.
+The enterprise base is selected by the `DEVSPACES_ENTERPRISE_BASE`
+repository variable and the two `DEVSPACES_BASE_REGISTRY_*` secrets. With
+them set, CI still builds the enterprise image but does not push it to
+GHCR; without them the lab builds and publishes both from the community
+base.
 
 ## Splitting an EE out later
 
