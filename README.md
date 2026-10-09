@@ -47,8 +47,9 @@ flowchart TD
 
 Two lineages, on purpose. The execution environments are runtime images that
 Automation Controller runs jobs inside, one per domain over a shared base. The
-authoring images are where a person works, and both carry the same Python
-clients from the same files.
+authoring images are where a person works. The network image carries the
+network clients; the enterprise image carries those and every other domain's,
+from the same files.
 
 `ee-primary`, `ee-vmware`, and `ee-network` each set `images.base_image.name` to
 `ee-base`. The CI overrides it at build time with the **freshly built base pinned
@@ -162,12 +163,12 @@ base.
 
 ## What CI does with a change
 
-This view shows the workflow on every push and pull request, and what it
-refuses to do.
+This view shows the workflow on every pull request and every push to `main`,
+and what it refuses to do.
 
 ```mermaid
 flowchart LR
-    PR["Push or pull request"] --> T["test-scripts<br/>stub oc"]
+    PR["Pull request, or push to main"] --> T["test-scripts<br/>stub oc"]
     PR --> E["build-ees<br/>base, then derived"]
     PR --> D["build-devspaces<br/>both variants"]
     E --> G{"Named in<br/>PUBLISH_IMAGES?"}
