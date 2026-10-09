@@ -1,15 +1,16 @@
 # align manifest v2: sha256  kind  status  path
 50e6b32dc2fc21d7b71c6c4aabdce595b561e73784342c72cec230d8519cdc0b  t  -  .gitattributes
-c2347b33bf3504d93b00af526d5f024618689a53d46a125efb4023a2073c5077  t  -  .github/workflows/build-ee.yml
+0b7b568d3932c220fb222fd277c5aebff58e13955ce766bcf4ca818ea851e2ce  t  -  .github/workflows/build-ee.yml
+d21a80e46fa53991501921e86331089d1942070e67a8f87f4b414050363e948c  t  -  .github/workflows/prune-packages.yml
 1b9f5bc0b8cac4e265c595a41d1abebd901db74808a027e5b477d8e3ee6c3830  t  -  .gitignore
-73e8c5a7aa634700f1bc2f1d789597c7251f7a43a234f6208c7c99e519dc2589  t  -  README.md
+24cfb7d4b322157aa4d3b97f347656b4874623a56e657325e7c3bf73b3704bf2  t  -  README.md
 69578893c0959d87d67d18033807fbbc8578a0419dfcb48441229b597ef5d640  t  -  base/bindep.txt
 f9646b3cd8450d7e9afa377a30330e62a8bd83538831c1d4e5bc1e469f0f693f  t  -  base/execution-environment.yml
 3c70acaceca0b29833ce70f85f299375084c1c021d1fc273c3b62908f0feb1d4  t  -  base/requirements.txt
 76d0cf61a25253d088d0275c7952e21417e1a57aa239e8b0b399656dbf7c8f72  t  -  base/requirements.yml
 b51db55a66070550551bb09bc987edb27ed37067258dd8b4c373c5dbe207b7b4  t  -  devfile.yaml
 52d498905d12c9fb41bfdecb230a09acd1db7a94bb15d2a227e3fde4a96a55e4  t  -  devspaces/Containerfile
-5e0e1af2699318d2b2e0086a7072efcb7e3c67707fffa6f3992b395181d1e90c  t  -  devspaces/README.md
+db9be62a35c875fed7c8680d9bbe92128c9d98d2b89e05fa876d5a1c76192548  t  -  devspaces/README.md
 401d9c573ab67ff57bc156944d3d895e91eac70377cce8212d95c862b83c0ef1  t  -  devspaces/requirements/full.txt
 5101d80a6cc39cb4e676d8976e6d9e48361c186e59464f2af1fc95a5d17414aa  t  -  devspaces/requirements/network.txt
 0a41f354a05faf18044204a5d3eba73888bca2474650d3e4b7b8aa94e198cd20  t  -  network/execution-environment.yml
@@ -31,4 +32,4 @@ d0ec9543a32a6fa85514e6c290f68c8887252145e8917c43889f286419650d5b  t  -  vmware/b
 60e49d52b726844425c9b35858ecd8a1a031d6a1072a353c95ff80eb6fad74e0  t  -  vmware/execution-environment.yml
 681f1cd3bde927baa910624e9881935cb8f63693982a6b8270de6613e7fd8ae8  t  -  vmware/requirements.txt
 0f855beccd0c417d1ec2070c32d1df9972f4928e19781494a0fb7b25b602c304  t  -  vmware/requirements.yml
-# entries: 32
+# entries: 33
