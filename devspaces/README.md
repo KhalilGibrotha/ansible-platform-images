@@ -79,9 +79,10 @@ Expected: the version pinned in `requirements/network.txt`.
 2. Add the line to the domain file under `requirements/`, with a comment
    naming the collection and version it came from. A new domain gets a new
    file and one `-r` line in `full.txt`.
-3. Open a pull request. CI builds both images on every pull request and,
-   on merge, publishes every one built from the community base, with the
-   pushed digests in the job summary.
+3. Open a pull request. CI builds both images on every pull request. On a
+   push to `main` it publishes the ones the `PUBLISH_IMAGES` repository
+   variable names, community-base builds only, with the pushed digests in
+   the job summary.
 
 ## Building Locally
 

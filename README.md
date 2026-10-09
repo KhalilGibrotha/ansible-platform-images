@@ -63,7 +63,7 @@ ansible-builder build -f network/execution-environment.yml -c network/context \
 ```
 
 CI (`.github/workflows/build-ee.yml`) does this in dependency order on every push
-and publishes to GHCR by digest.
+and, where the `PUBLISH_IMAGES` variable names them, publishes to GHCR by digest.
 
 ## Collection sourcing: lab vs SECU
 
@@ -139,8 +139,9 @@ namespace's ImageStreams by digest, and promote by digest copy: see
 those same builds from a runner later. Images built in the cluster stay
 internal, the network one included.
 
-CI builds both on every pull request and, on merge, publishes the ones
-built from the community base, with the pushed digest in the job summary.
+CI builds both on every pull request and, on a push to `main`, publishes the
+ones the `PUBLISH_IMAGES` variable names, community-base builds only, with the
+pushed digest in the job summary.
 The enterprise base is selected by the `DEVSPACES_ENTERPRISE_BASE`
 repository variable and the two `DEVSPACES_BASE_REGISTRY_*` secrets. With
 them set, CI still builds the enterprise image but does not push it to
