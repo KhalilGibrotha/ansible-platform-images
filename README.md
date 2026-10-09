@@ -30,6 +30,26 @@ by digest — plus the authoring image on its own track.
 
 ## How the layering works
 
+This view shows the build lineage: which image is built from which, and where
+the Python clients enter the authoring images.
+
+```mermaid
+flowchart TD
+    UBI["Red Hat EE base"] --> BASE["ee-base<br/>org foundation"]
+    BASE --> PRIM["ee-primary"]
+    BASE --> VMW["ee-vmware"]
+    BASE --> NET["ee-network"]
+    DS["Red Hat Dev Spaces image"] --> FULL["ansible-devspaces<br/>enterprise"]
+    DS --> NETDS["ansible-devspaces-network<br/>public"]
+    REQ["devspaces/requirements/<br/>Python clients"] --> FULL
+    REQ --> NETDS
+```
+
+Two lineages, on purpose. The execution environments are runtime images that
+Automation Controller runs jobs inside, one per domain over a shared base. The
+authoring images are where a person works, and both carry the same Python
+clients from the same files.
+
 `ee-primary`, `ee-vmware`, and `ee-network` each set `images.base_image.name` to
 `ee-base`. The CI overrides it at build time with the **freshly built base pinned
 by digest** (`--build-arg EE_BASE_IMAGE=<digest>`), so:
@@ -139,6 +159,27 @@ repository variable and the two `DEVSPACES_BASE_REGISTRY_*` secrets. With
 them set, CI still builds the enterprise image but does not push it to
 GHCR; without them the lab builds and publishes both from the community
 base.
+
+## What CI does with a change
+
+This view shows the workflow on every push and pull request, and what it
+refuses to do.
+
+```mermaid
+flowchart LR
+    PR["Push or pull request"] --> T["test-scripts<br/>stub oc"]
+    PR --> E["build-ees<br/>base, then derived"]
+    PR --> D["build-devspaces<br/>both variants"]
+    E --> G{"Named in<br/>PUBLISH_IMAGES?"}
+    D --> G
+    G -- "yes, on main" --> REG["Package registry"]
+    G -- "no" --> N["Built, not published"]
+```
+
+A pull request proves the images build; nothing is pushed. A push to `main`
+publishes only the images the repository variable names. The in-cluster build
+in [`openshift/README.md`](openshift/README.md) is the same images on a path
+the organisation controls, and it is not yet running anywhere.
 
 ## Splitting an EE out later
 
