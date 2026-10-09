@@ -1,3 +1,14 @@
 # ansible-builder writes the generated Containerfile + build context here.
 # It is a derived artifact - regenerated on every build, never committed.
 */context/
+
+# Local Claude Code session config (machine-specific absolute paths)
+.claude/
+
+# repo-align output (adhoc-tools): payloads for pasting into the twin
+# repository, never versioned on either side. .align/MANIFEST.txt is the
+# exception: the pre-push hook regenerates it and it is committed so drift
+# is a diff of two manifests.
+align-out/
+.align/*
+!.align/MANIFEST.txt

@@ -1,0 +1,78 @@
+#!/usr/bin/env bash
+# pre-push — refresh the align manifest once per push, not once per commit.
+#
+# Activate (same setting as the pre-commit hook):
+#     git config core.hooksPath .githooks
+#
+# Why pre-push rather than pre-commit: the manifest measures drift against a
+# separate repo, which only matters when work leaves this one. Rebuilding it on
+# every commit re-hashed the whole tree each time — wasted work, and enough
+# memory pressure to matter in a capped dev workspace.
+#
+# This hook only WRITES the manifest. It does not stage or amend, because doing
+# either during pre-push would make the pushed commits differ from what was
+# reviewed. If the refresh changes the file, the hook says so and asks for a
+# follow-up commit.
+set -euo pipefail
+
+# Repos moved off cloud-synced storage to E:\dev on 2026-07-31. The path form
+# differs by lane — Git Bash sees /e/..., WSL sees /mnt/e/... — so try both
+# rather than pinning one and having the hook silently skip in the other.
+# ALIGN_PY overrides everything, which is what a container or a moved checkout
+# should set.
+if [ -z "${ALIGN_PY:-}" ]; then
+    for candidate_py in \
+        /e/dev/adhoc-tools/repo-align/align.py \
+        /mnt/e/dev/adhoc-tools/repo-align/align.py \
+        "$HOME/dev/adhoc-tools/repo-align/align.py"; do
+        if [ -f "$candidate_py" ]; then
+            ALIGN_PY="$candidate_py"
+            break
+        fi
+    done
+fi
+ALIGN_PY="${ALIGN_PY:-/e/dev/adhoc-tools/repo-align/align.py}"
+
+# Dev Spaces images ship python3 and often no bare `python`. Checking only for
+# `python` made this hook silently skip in exactly the workspace it is for.
+PY=""
+for candidate in python3 python; do
+    if command -v "$candidate" >/dev/null 2>&1; then
+        PY="$candidate"
+        break
+    fi
+done
+
+if [ ! -f "$ALIGN_PY" ] || [ -z "$PY" ]; then
+    echo "pre-push: align.py or python not available — skipping manifest" >&2
+    exit 0
+fi
+
+dest="$(sed -n 's/^[[:space:]]*manifest[[:space:]]*=[[:space:]]*//p' \
+    .align.conf 2>/dev/null | head -n 1 | tr -d '\r')"
+dest="${dest:-align-out/MANIFEST.txt}"
+
+before=""
+if [ -f "$dest" ]; then
+    before="$(sha256sum "$dest" | cut -d' ' -f1)"
+fi
+
+if ! "$PY" "$ALIGN_PY" manifest >/dev/null; then
+    echo "pre-push: manifest generation failed — pushing anyway" >&2
+    exit 0
+fi
+
+after=""
+if [ -f "$dest" ]; then
+    after="$(sha256sum "$dest" | cut -d' ' -f1)"
+fi
+
+if [ "$before" != "$after" ]; then
+    echo "pre-push: $dest changed — commit it so the fingerprint matches this push" >&2
+    echo "          git add $dest && git commit -m 'chore: refresh align manifest'" >&2
+fi
+
+# Explicit success. Without this the hook returns whatever the last command
+# did, so a failed echo on a closed stderr would block the push over a
+# cosmetic message. This hook must never be the reason a push fails.
+exit 0
