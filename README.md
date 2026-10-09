@@ -10,12 +10,19 @@ playbooks) are authored and tested elsewhere and run inside these images.
 One thin shared base, purpose-built EEs layered on top, built once and promoted
 by digest — plus the authoring image on its own track.
 
-> **Registry namespace is temporary.** These images publish to
-> `ghcr.io/khalilgibrotha/*` for now. When the platform is rebuilt internally,
-> change `REGISTRY` and `OWNER` in the CI workflow (and the `base_image` /
-> `DEVSPACES_BASE` defaults) to the internal registry, and repoint the consuming
-> `ansible-dev-workspace` devfile at the published image. The references are
-> deliberately in few, obvious places.
+> **Where images go.** The registry namespace is the repository owner, lowercased
+> by CI, so a twin of this repository builds without editing the workflow. Images
+> are pushed only where the `PUBLISH_IMAGES` repository variable names them, as
+> a space-separated list, or is `all`; elsewhere a push to `main` proves the
+> images build and sends nothing to the package registry. When the internal registry exists, change `REGISTRY` in the
+> workflow (and the `base_image` / `DEVSPACES_BASE` defaults) and repoint the
+> consuming `ansible-dev-workspace` devfile at the published image.
+>
+> Where publishing is on, `prune-packages.yml` keeps the registry small: every
+> `v*` tag stays, the newest candidate of each image stays, and older candidates
+> are deleted after two days. It lists rather than deletes until the
+> `PRUNE_DRY_RUN` repository variable is `false`. Pin digests of promoted tags
+> only; a `sha-` build is a candidate that may vanish.
 
 ## The fleet
 
@@ -77,7 +84,7 @@ ansible-builder build -f network/execution-environment.yml -c network/context \
 ```
 
 CI (`.github/workflows/build-ee.yml`) does this in dependency order on every push
-and publishes to GHCR by digest.
+and, where the `PUBLISH_IMAGES` variable names them, publishes to GHCR by digest.
 
 ## Collection sourcing: lab vs SECU
 
@@ -153,8 +160,9 @@ namespace's ImageStreams by digest, and promote by digest copy: see
 those same builds from a runner later. Images built in the cluster stay
 internal, the network one included.
 
-CI builds both on every pull request and, on merge, publishes the ones
-built from the community base, with the pushed digest in the job summary.
+CI builds both on every pull request and, on a push to `main`, publishes the
+ones the `PUBLISH_IMAGES` variable names, community-base builds only, with the
+pushed digest in the job summary.
 The enterprise base is selected by the `DEVSPACES_ENTERPRISE_BASE`
 repository variable and the two `DEVSPACES_BASE_REGISTRY_*` secrets. With
 them set, CI still builds the enterprise image but does not push it to
