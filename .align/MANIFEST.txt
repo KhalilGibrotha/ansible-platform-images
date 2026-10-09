@@ -1,5 +1,5 @@
 # align manifest v2: sha256  kind  status  path
-c411ac352d22897cf06e928da96cf39426feb4b847dfd91eca4c3a87efef8f48  t  -  .gitattributes
+50e6b32dc2fc21d7b71c6c4aabdce595b561e73784342c72cec230d8519cdc0b  t  -  .gitattributes
 c2347b33bf3504d93b00af526d5f024618689a53d46a125efb4023a2073c5077  t  -  .github/workflows/build-ee.yml
 1b9f5bc0b8cac4e265c595a41d1abebd901db74808a027e5b477d8e3ee6c3830  t  -  .gitignore
 73e8c5a7aa634700f1bc2f1d789597c7251f7a43a234f6208c7c99e519dc2589  t  -  README.md
